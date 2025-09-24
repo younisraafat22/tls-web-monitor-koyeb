@@ -355,14 +355,13 @@ class TLSWebMonitor:
                     if is_render:
                         self._emit_log('error', "🔧 Render deployment requires Chrome to be installed via aptfile")
                     elif is_koyeb:
-                        self._emit_log('error', "🔧 Koyeb deployment may need Chrome in Docker image or buildpack")
-                        self._emit_log('error', "💡 Try adding Chrome installation to your Dockerfile")
+                        self._emit_log('error', "🔧 Koyeb deployment requires Chrome installation in Dockerfile")
+                        self._emit_log('error', "💡 Check Dockerfile Chrome installation steps")
                     else:
                         self._emit_log('error', f"🔧 {platform} deployment requires Chrome installation")
                     
-                    # Don't raise exception immediately - let's try to continue with default Chrome paths
-                    self._emit_log('warning', "⚠️ Attempting to continue without explicit Chrome binary path...")
-                    chrome_binary = None  # Let Chrome auto-detect
+                    # Raise exception to stop monitoring - no fallback
+                    raise Exception(f"Chrome binary not found on {platform} - Chrome installation required")
         
         if use_uc:
             try:

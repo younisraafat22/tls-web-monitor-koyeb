@@ -43,15 +43,29 @@ RUN apt-get update && apt-get install -y \
     xvfb \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Google Chrome
-RUN wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add - \
+# Install Google Chrome - Updated method for better Koyeb compatibility
+RUN apt-get update \
+    && apt-get install -y wget gnupg \
+    && wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor > /etc/apt/trusted.gpg.d/google.gpg \
     && echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list \
     && apt-get update \
     && apt-get install -y google-chrome-stable \
     && rm -rf /var/lib/apt/lists/*
 
-# Verify Chrome installation
-RUN google-chrome --version
+# Alternative: Install Chrome via direct download if repository fails
+RUN if [ ! -f /usr/bin/google-chrome-stable ]; then \
+        echo "Chrome repository installation failed, trying direct download..." && \
+        wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb \
+        && dpkg -i google-chrome-stable_current_amd64.deb || apt-get install -f -y \
+        && rm -f google-chrome-stable_current_amd64.deb; \
+    fi
+
+# Verify Chrome installation and create symlinks
+RUN google-chrome-stable --version \
+    && ln -sf /usr/bin/google-chrome-stable /usr/bin/google-chrome \
+    && ln -sf /usr/bin/google-chrome-stable /usr/local/bin/chrome \
+    && which google-chrome-stable \
+    && ls -la /usr/bin/google-chrome*
 
 # Set up working directory
 WORKDIR /app
