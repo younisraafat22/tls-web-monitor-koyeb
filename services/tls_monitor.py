@@ -40,6 +40,9 @@ try:
 except ImportError:
     TOAST_AVAILABLE = False
 
+# UC control flag - set TLS_ENABLE_UC=1 to force UC in cloud (not recommended for stability)
+TLS_ENABLE_UC = os.environ.get("TLS_ENABLE_UC") == "1"
+
 class TLSWebMonitor:
     def __init__(self, config: Dict, socketio=None):
         self.config = config
@@ -204,465 +207,141 @@ class TLSWebMonitor:
             self._emit_log('warning', f"Error during Chrome cleanup: {e}")
 
     def _setup_driver(self):
-        """Initialize the browser driver with Render.com cloud support"""
-        # Guard against missing attribute if code runs before __init__ fully executed
+        """Initialize the browser driver with cloud-stable configuration"""
         instance_id = getattr(self, '_instance_id', 'unknown')
         print(f"[DEBUG] {instance_id} - Setting up Chrome WebDriver")
-        use_uc = self.config.get("use_seleniumbase_uc", False) and SELENIUMBASE_AVAILABLE
         
-        # Detect cloud deployment (Render, Koyeb, Railway, Heroku, etc.)
+        # Detect cloud deployment platforms
         is_render = os.environ.get('RENDER_SERVICE_NAME') is not None
         is_koyeb = os.environ.get('KOYEB_SERVICE_NAME') is not None
         is_railway = os.environ.get('RAILWAY_ENVIRONMENT') is not None
         is_heroku = os.environ.get('HEROKU_APP_NAME') is not None
-        is_cloud_deployment = is_render or is_koyeb or is_railway or is_heroku or os.environ.get('PORT') is not None
+        is_cloud_deployment = any([is_render, is_koyeb, is_railway, is_heroku, os.environ.get('PORT')])
         
+        # Disable UC in cloud unless explicitly forced via environment variable
+        use_uc = (
+            self.config.get("use_seleniumbase_uc", False)
+            and SELENIUMBASE_AVAILABLE
+            and (not is_cloud_deployment or TLS_ENABLE_UC)
+        )
+        
+        # Clean up any stray Chrome processes from previous runs
+        if is_cloud_deployment:
+            try:
+                import subprocess
+                process_names = ['chrome', 'google-chrome', 'google-chrome-stable', 'chromedriver', 'uc_driver']
+                for process_name in process_names:
+                    try:
+                        subprocess.run(['pkill', '-f', process_name], capture_output=True, timeout=2)
+                    except Exception:
+                        pass
+                # Small delay to let processes terminate
+                time.sleep(0.3)
+                self._emit_log('info', "🧹 Cleaned up any stray Chrome processes")
+            except Exception as e:
+                self._emit_log('info', f"Process cleanup note: {e}")
+        
+        # Find Chrome binary in cloud environments
+        chrome_binary = None
         if is_cloud_deployment:
             platform = "Koyeb" if is_koyeb else "Render" if is_render else "Railway" if is_railway else "Heroku" if is_heroku else "Cloud"
             self._emit_log('info', f"🌐 Detected {platform} deployment - setting up Chrome...")
             
-            # Force headless mode on cloud deployments
-            headless_mode = True
-            
-            # Find Chrome binary on cloud deployment
-            chrome_binary = None
-            cloud_chrome_paths = [
+            chrome_paths = [
                 '/usr/bin/google-chrome',
-                '/usr/bin/google-chrome-stable', 
+                '/usr/bin/google-chrome-stable',
                 '/usr/bin/chromium-browser',
-                '/usr/bin/chromium',
-                '/opt/google/chrome/chrome',
-                '/snap/bin/chromium',
-                '/app/.chrome-for-testing/chrome-linux64/chrome',  # Koyeb specific
-                '/workspace/.chrome/chrome',  # Alternative Koyeb path
-                '/opt/chrome/chrome',  # Alternative cloud path
+                '/usr/bin/chromium'
             ]
             
-            self._emit_log('info', f"🔍 Searching for Chrome binary on {platform}...")
-            
-            # Debug: List available paths first
-            self._emit_log('info', "🔍 Debugging - checking all Chrome paths...")
-            for path in cloud_chrome_paths:
-                exists = os.path.exists(path)
-                executable = os.access(path, os.X_OK) if exists else False
-                self._emit_log('info', f"  {path}: exists={exists}, executable={executable}")
-                if exists and executable:
+            for path in chrome_paths:
+                if os.path.exists(path) and os.access(path, os.X_OK):
                     chrome_binary = path
                     self._emit_log('info', f"✅ Found Chrome: {chrome_binary}")
                     break
-            
+                    
             if not chrome_binary:
-                self._emit_log('warning', "⚠️ Chrome not found in standard locations, checking installed packages...")
-                try:
-                    import subprocess
-                    
-                    # Try multiple Chrome commands
-                    chrome_commands = ['google-chrome', 'google-chrome-stable', 'chromium-browser', 'chromium']
-                    for cmd in chrome_commands:
-                        try:
-                            result = subprocess.run(['which', cmd], capture_output=True, text=True, timeout=10)
-                            if result.returncode == 0 and result.stdout.strip():
-                                chrome_binary = result.stdout.strip()
-                                self._emit_log('info', f"✅ Found {cmd} via which: {chrome_binary}")
-                                break
-                        except Exception as cmd_error:
-                            self._emit_log('warning', f"Failed to check {cmd}: {cmd_error}")
-                    
-                    # If still not found, try alternative methods
-                    if not chrome_binary:
-                        try:
-                            # Try find command to locate Chrome
-                            result = subprocess.run(['find', '/usr', '/opt', '-name', 'google-chrome*', '-type', 'f', '-executable'], 
-                                                  capture_output=True, text=True, timeout=15)
-                            if result.returncode == 0 and result.stdout.strip():
-                                lines = result.stdout.strip().split('\n')
-                                for line in lines:
-                                    if 'google-chrome' in line and os.path.exists(line):
-                                        chrome_binary = line
-                                        self._emit_log('info', f"✅ Found Chrome via find: {chrome_binary}")
-                                        break
-                        except Exception as find_error:
-                            self._emit_log('warning', f"Find command failed: {find_error}")
-                            
-                except Exception as e:
-                    self._emit_log('warning', f"Chrome detection error: {e}")
-            
-            if not chrome_binary:
-                self._emit_log('warning', f"❌ Chrome/Chromium not found on {platform}! Running comprehensive discovery...")
-                
-                # Comprehensive Chrome discovery for debugging
-                self._emit_log('info', "🔍 CHROME DISCOVERY DEBUG - Starting comprehensive search...")
-                
-                try:
-                    import subprocess
-                    
-                    # 1. Check if Chrome package is installed
-                    self._emit_log('info', "1️⃣ Checking installed packages...")
-                    try:
-                        result = subprocess.run(['dpkg', '-l', '|', 'grep', 'chrome'], 
-                                              capture_output=True, text=True, shell=True, timeout=10)
-                        if result.stdout:
-                            self._emit_log('info', f"   Installed packages: {result.stdout}")
-                        else:
-                            self._emit_log('warning', "   No Chrome packages found via dpkg")
-                    except Exception as e:
-                        self._emit_log('warning', f"   Package check failed: {e}")
-                    
-                    # 2. Search entire filesystem for Chrome binaries
-                    self._emit_log('info', "2️⃣ Searching filesystem for Chrome binaries...")
-                    try:
-                        search_commands = [
-                            ['find', '/', '-name', '*chrome*', '-type', 'f', '-executable', '2>/dev/null'],
-                            ['find', '/usr', '-name', '*chrome*', '-type', 'f', '2>/dev/null'],
-                            ['find', '/opt', '-name', '*chrome*', '-type', 'f', '2>/dev/null'],
-                            ['find', '/app', '-name', '*chrome*', '-type', 'f', '2>/dev/null']
-                        ]
-                        
-                        for cmd in search_commands:
-                            try:
-                                result = subprocess.run(cmd, capture_output=True, text=True, timeout=15, shell=True)
-                                if result.stdout.strip():
-                                    lines = result.stdout.strip().split('\n')[:10]  # Limit output
-                                    for line in lines:
-                                        if line.strip():
-                                            self._emit_log('info', f"   Found: {line}")
-                                            # Try this as Chrome binary
-                                            if 'chrome' in line.lower() and os.path.exists(line) and os.access(line, os.X_OK):
-                                                chrome_binary = line
-                                                self._emit_log('info', f"✅ DISCOVERED Chrome binary: {chrome_binary}")
-                                                break
-                                if chrome_binary:
-                                    break
-                            except Exception as cmd_error:
-                                self._emit_log('warning', f"   Search command failed: {cmd_error}")
-                    except Exception as e:
-                        self._emit_log('warning', f"   Filesystem search failed: {e}")
-                    
-                    # 3. Check environment variables
-                    self._emit_log('info', "3️⃣ Checking environment variables...")
-                    chrome_env_vars = ['CHROME_BIN', 'GOOGLE_CHROME_BIN', 'CHROME_EXECUTABLE']
-                    for env_var in chrome_env_vars:
-                        value = os.environ.get(env_var)
-                        if value:
-                            self._emit_log('info', f"   {env_var}={value}")
-                            if os.path.exists(value) and os.access(value, os.X_OK) and not chrome_binary:
-                                chrome_binary = value
-                                self._emit_log('info', f"✅ Using Chrome from environment: {chrome_binary}")
-                        else:
-                            self._emit_log('info', f"   {env_var}=<not set>")
-                    
-                    # 4. Try to run Chrome commands to see what happens
-                    self._emit_log('info', "4️⃣ Testing Chrome commands...")
-                    chrome_commands = ['google-chrome', 'google-chrome-stable', 'chromium-browser', 'chrome']
-                    for cmd in chrome_commands:
-                        try:
-                            result = subprocess.run([cmd, '--version'], capture_output=True, text=True, timeout=10)
-                            if result.returncode == 0:
-                                self._emit_log('info', f"   {cmd} works: {result.stdout.strip()}")
-                                if not chrome_binary:
-                                    # Find where this command is located
-                                    which_result = subprocess.run(['which', cmd], capture_output=True, text=True, timeout=5)
-                                    if which_result.returncode == 0:
-                                        chrome_binary = which_result.stdout.strip()
-                                        self._emit_log('info', f"✅ Found working Chrome: {chrome_binary}")
-                            else:
-                                self._emit_log('info', f"   {cmd} failed: {result.stderr.strip()}")
-                        except Exception as cmd_error:
-                            self._emit_log('info', f"   {cmd} error: {cmd_error}")
-                    
-                    # 5. List common directories
-                    self._emit_log('info', "5️⃣ Listing contents of common Chrome directories...")
-                    common_dirs = ['/usr/bin', '/opt', '/usr/lib', '/app', '/workspace']
-                    for directory in common_dirs:
-                        if os.path.exists(directory):
-                            try:
-                                files = os.listdir(directory)
-                                chrome_files = [f for f in files if 'chrome' in f.lower()]
-                                if chrome_files:
-                                    self._emit_log('info', f"   {directory}: {chrome_files}")
-                                    # Check if any of these are executable
-                                    for file in chrome_files:
-                                        full_path = os.path.join(directory, file)
-                                        if os.access(full_path, os.X_OK) and not chrome_binary:
-                                            chrome_binary = full_path
-                                            self._emit_log('info', f"✅ Found executable Chrome: {chrome_binary}")
-                                            break
-                            except Exception as e:
-                                self._emit_log('warning', f"   Cannot list {directory}: {e}")
-                
-                except Exception as discovery_error:
-                    self._emit_log('error', f"Chrome discovery failed: {discovery_error}")
-                
-                # Final check
-                if chrome_binary:
-                    self._emit_log('info', f"🎉 CHROME DISCOVERY SUCCESSFUL: {chrome_binary}")
-                else:
-                    self._emit_log('error', "❌ CHROME DISCOVERY FAILED - Chrome not found anywhere!")
-                    if is_render:
-                        self._emit_log('error', "🔧 Render deployment requires Chrome to be installed via aptfile")
-                    elif is_koyeb:
-                        self._emit_log('error', "🔧 Koyeb deployment requires Chrome installation in Dockerfile")
-                        self._emit_log('error', "💡 Check Dockerfile Chrome installation steps")
-                    else:
-                        self._emit_log('error', f"🔧 {platform} deployment requires Chrome installation")
-                    
-                    # Raise exception to stop monitoring - no fallback
-                    raise Exception(f"Chrome binary not found on {platform} - Chrome installation required")
+                raise RuntimeError(f"Chrome binary not found on {platform} - Chrome installation required")
         
+        # Try SeleniumBase UC mode (only if not in cloud or explicitly enabled)
         if use_uc:
             try:
-                self._emit_log('info', "🚀 Initializing SeleniumBase UC mode for Cloudflare bypass...")
-                
-                # For cloud deployments, we need to pass the chrome binary path to SeleniumBase
-                if is_cloud_deployment and chrome_binary:
+                self._emit_log('info', "🚀 Initializing SeleniumBase UC mode...")
+                if chrome_binary:
                     os.environ['CHROME_BIN'] = chrome_binary
-                    self._emit_log('info', f"🎯 Set CHROME_BIN environment variable: {chrome_binary}")
-                
-                self.driver = Driver(uc=True, headless=is_render)
-                self._emit_log('info', "✅ SeleniumBase UC driver initialized successfully")
+                self.driver = Driver(uc=True, headless=is_cloud_deployment or is_render)
                 self._is_seleniumbase = True
+                self._emit_log('info', "✅ SeleniumBase UC driver initialized successfully")
                 return
-                
             except Exception as e:
                 self._emit_log('warning', f"❌ SeleniumBase UC failed: {e}")
-                
-                # Clean up any leftover processes and user data from failed UC attempt
                 self._cleanup_failed_chrome_attempt()
-                
-                self._emit_log('warning', "🔄 Falling back to regular Selenium WebDriver...")
-                
-        # Fallback to regular Selenium
+                self._emit_log('info', "🔄 Falling back to regular Selenium WebDriver...")
+        
+        # Regular Selenium WebDriver setup with minimal, stable flags
         self._emit_log('info', "🔧 Using regular Selenium WebDriver")
         self._is_seleniumbase = False
         
         options = Options()
         
-        # Essential Chrome options for cloud deployment (Koyeb/Render)
-        if is_cloud_deployment:
-            self._emit_log('info', "⚙️ Applying Cloud deployment Chrome optimizations...")
-            options.add_argument('--headless=new')  # Use new headless mode
-            options.add_argument('--no-sandbox')
-            options.add_argument('--disable-dev-shm-usage')
-            options.add_argument('--disable-gpu')
-            options.add_argument('--disable-features=VizDisplayCompositor')
-            options.add_argument('--disable-background-timer-throttling')
-            options.add_argument('--disable-backgrounding-occluded-windows')
-            options.add_argument('--disable-renderer-backgrounding')
-            options.add_argument('--disable-field-trial-config')
-            options.add_argument('--disable-back-forward-cache')
-            options.add_argument('--disable-extensions')
-            options.add_argument('--disable-plugins')
-            options.add_argument('--disable-default-apps')
-            options.add_argument('--disable-sync')
-            options.add_argument('--disable-translate')
-            options.add_argument('--hide-scrollbars')
-            options.add_argument('--mute-audio')
-            options.add_argument('--disable-logging')
-            options.add_argument('--disable-background-networking')
-            options.add_argument('--disable-client-side-phishing-detection')
-            options.add_argument('--disable-component-extensions-with-background-pages')
-            options.add_argument('--disable-ipc-flooding-protection')
-            options.add_argument('--disable-hang-monitor')
-            options.add_argument('--disable-prompt-on-repost')
-            options.add_argument('--disable-web-security')  # For testing
-            options.add_argument('--allow-running-insecure-content')
-            options.add_argument('--ignore-certificate-errors')
-            options.add_argument('--ignore-ssl-errors')
-            options.add_argument('--ignore-certificate-errors-spki-list')
-            # Koyeb-specific optimizations
-            options.add_argument('--memory-pressure-off')  # Help with memory management
-            options.add_argument('--max_old_space_size=512')  # Limit memory usage
-            # Removed --single-process as it can conflict with user data directory
-            
-            # Create unique user data directory to avoid conflicts in containerized environments
-            temp_dir = tempfile.gettempdir()
-            import time
-            timestamp = int(time.time() * 1000)  # Millisecond timestamp
-            process_id = os.getpid()
-            unique_user_data_dir = os.path.join(temp_dir, f"chrome_user_data_{timestamp}_{process_id}_{uuid.uuid4().hex[:8]}")
-            
-            # Alternative 1: Try using /dev/shm for faster I/O if available (Linux containers)
-            shm_dir = "/dev/shm"
-            if os.path.exists(shm_dir) and os.access(shm_dir, os.W_OK):
-                unique_user_data_dir = os.path.join(shm_dir, f"chrome_user_data_{timestamp}_{process_id}_{uuid.uuid4().hex[:8]}")
-                self._emit_log('info', f"🚀 Using /dev/shm for user data directory (faster I/O)")
-            
-            os.makedirs(unique_user_data_dir, exist_ok=True)
-            
-            # Clean up any existing lock files in the directory
-            lock_files = ['SingletonLock', 'SingletonSocket', 'SingletonCookie']
-            for lock_file in lock_files:
-                lock_path = os.path.join(unique_user_data_dir, lock_file)
-                if os.path.exists(lock_path):
-                    try:
-                        os.remove(lock_path)
-                        self._emit_log('info', f"🗑️ Removed existing lock file: {lock_file}")
-                    except Exception as e:
-                        self._emit_log('warning', f"⚠️ Could not remove lock file {lock_file}: {e}")
-            
-            options.add_argument(f'--user-data-dir={unique_user_data_dir}')
-            self._temp_user_data_dir = unique_user_data_dir  # Store for cleanup
-            self._emit_log('info', f"🗂️ Using unique user data directory: {unique_user_data_dir}")
-            
-            # DEBUG: Log directory creation and permissions
-            if os.path.exists(unique_user_data_dir):
-                import stat
-                dir_stat = os.stat(unique_user_data_dir)
-                self._emit_log('info', f"📁 Directory created successfully: {unique_user_data_dir}")
-                self._emit_log('info', f"📊 Directory permissions: {oct(dir_stat.st_mode)}")
-                self._emit_log('info', f"👤 Directory owner: UID={dir_stat.st_uid}, GID={dir_stat.st_gid}")
-                
-                # Check if directory is writable
-                if os.access(unique_user_data_dir, os.W_OK):
-                    self._emit_log('info', f"✅ Directory is writable")
-                else:
-                    self._emit_log('warning', f"⚠️ Directory is not writable!")
-            else:
-                self._emit_log('error', f"❌ Failed to create directory: {unique_user_data_dir}")
-            
-            # Alternative 2: Add Chrome options specifically for containerized environments
-            # Based on Chrome documentation for avoiding user data directory conflicts
-            options.add_argument('--disable-dev-shm-usage')  # Already exists but critical
-            options.add_argument('--disable-background-timer-throttling')  # Already exists 
-            options.add_argument('--disable-backgrounding-occluded-windows')  # Already exists
-            options.add_argument('--disable-renderer-backgrounding')  # Already exists
-            options.add_argument('--disable-ipc-flooding-protection')  # Already exists
-            options.add_argument('--no-zygote')  # Disable zygote process
-            options.add_argument('--no-crash-upload')  # Disable crash reporting
-            options.add_argument('--disable-crash-reporter')  # Disable crash reporter
-            options.add_argument('--disable-in-process-stack-traces')  # Disable stack traces
-            
-            # Additional Chrome options to prevent directory conflicts
-            options.add_argument('--no-first-run')  # Skip first run tasks
-            options.add_argument('--no-default-browser-check')  # Skip browser checks
-            options.add_argument('--disable-background-mode')  # Disable background mode
-            options.add_argument('--disable-backgrounding-occluded-windows')  # Already exists but good to have
-            options.add_argument('--disable-component-update')  # Disable component updates
-            options.add_argument('--disable-features=TranslateUI')  # Disable translate
-            options.add_argument('--disable-features=VizDisplayCompositor')  # Already exists but good to have
-            
-            # Set Chrome binary if found
-            if chrome_binary:
-                options.binary_location = chrome_binary
-                self._emit_log('info', f"🎯 Chrome binary set to: {chrome_binary}")
-            
-        # Standard Chrome options
-        options.add_argument('--disable-blink-features=AutomationControlled')
+        # Headless mode for cloud or user preference
+        headless_mode = True if is_cloud_deployment else self.config.get("headless_mode", False)
+        if headless_mode:
+            options.add_argument('--headless=new')
+        
+        # Minimal stable Chrome flags (remove duplicates and problematic ones)
+        stable_flags = [
+            '--no-sandbox',
+            '--disable-gpu',
+            '--disable-dev-shm-usage',
+            '--disable-background-networking',
+            '--disable-default-apps',
+            '--disable-extensions',
+            '--disable-sync',
+            '--disable-translate',
+            '--hide-scrollbars',
+            '--mute-audio',
+            '--no-first-run',
+            '--no-default-browser-check',
+            '--disable-features=TranslateUI',
+            '--disable-blink-features=AutomationControlled',
+            '--remote-debugging-port=0'  # Use random port to avoid conflicts
+        ]
+        
+        for flag in stable_flags:
+            options.add_argument(flag)
+        
+        # Create unique user data directory (use /tmp instead of /dev/shm for stability)
+        temp_dir = tempfile.gettempdir()
+        timestamp = int(time.time() * 1000)
+        process_id = os.getpid()
+        unique_user_data_dir = os.path.join(temp_dir, f"chrome_user_data_{timestamp}_{process_id}_{uuid.uuid4().hex[:8]}")
+        
+        os.makedirs(unique_user_data_dir, exist_ok=True)
+        options.add_argument(f'--user-data-dir={unique_user_data_dir}')
+        self._temp_user_data_dir = unique_user_data_dir
+        self._emit_log('info', f"🗂️ Using user data directory: {unique_user_data_dir}")
+        
+        # Anti-automation detection
         options.add_experimental_option("excludeSwitches", ["enable-automation"])
         options.add_experimental_option('useAutomationExtension', False)
         
-        if not is_cloud_deployment and self.config.get("headless_mode", False):
-            options.add_argument('--headless')
+        # Set Chrome binary if found
+        if chrome_binary:
+            options.binary_location = chrome_binary
+            self._emit_log('info', f"🎯 Chrome binary set to: {chrome_binary}")
         
         try:
             # Use webdriver-manager to handle ChromeDriver
             self._emit_log('info', "📦 Installing/updating ChromeDriver...")
             service = Service(ChromeDriverManager().install())
             
-            # DEBUG: Log all Chrome options before starting WebDriver
-            self._emit_log('info', "🔍 DEBUG: Chrome Options Analysis")
-            all_options = options.arguments
-            self._emit_log('info', f"📋 Total Chrome arguments: {len(all_options)}")
+            self._emit_log('info', f"🚀 Starting Chrome WebDriver with {len(options.arguments)} arguments...")
             
-            # Check for user-data-dir specifically
-            user_data_args = [arg for arg in all_options if 'user-data-dir' in arg]
-            if user_data_args:
-                self._emit_log('info', f"🗂️ User data directory arguments found: {user_data_args}")
-            else:
-                self._emit_log('warning', f"⚠️ No user-data-dir argument found in options!")
+            # Start WebDriver
+            self.driver = webdriver.Chrome(service=service, options=options)
             
-            # Log all Chrome arguments for debugging
-            for i, arg in enumerate(all_options):
-                self._emit_log('info', f"  [{i:2d}] {arg}")
-            
-            # Check Chrome binary location
-            if hasattr(options, 'binary_location') and options.binary_location:
-                self._emit_log('info', f"🎯 Chrome binary location: {options.binary_location}")
-                if os.path.exists(options.binary_location):
-                    self._emit_log('info', f"✅ Chrome binary exists and is accessible")
-                else:
-                    self._emit_log('error', f"❌ Chrome binary not found at: {options.binary_location}")
-            
-            # Check for running Chrome processes
-            try:
-                import subprocess
-                result = subprocess.run(['pgrep', '-f', 'chrome'], capture_output=True, text=True, timeout=5)
-                if result.returncode == 0:
-                    processes = result.stdout.strip().split('\n')
-                    self._emit_log('warning', f"⚠️ Found {len(processes)} running Chrome processes: {processes}")
-                else:
-                    self._emit_log('info', f"✅ No running Chrome processes found")
-            except Exception as e:
-                self._emit_log('info', f"🔍 Could not check for running Chrome processes: {e}")
-            
-            self._emit_log('info', "🚀 Starting Chrome WebDriver...")
-            
-            # Alternative approach: Try multiple strategies for Chrome startup
-            strategies = [
-                ("with_user_data_dir", "Using unique user data directory"),
-                ("without_user_data_dir", "Without user data directory"),
-                ("with_tmp_profile", "Using temporary profile")
-            ]
-            
-            for strategy_name, strategy_desc in strategies:
-                try:
-                    self._emit_log('info', f"🔄 Trying strategy: {strategy_desc}")
-                    
-                    if strategy_name == "without_user_data_dir":
-                        # Remove user-data-dir argument
-                        modified_options = webdriver.ChromeOptions()
-                        for arg in options.arguments:
-                            if not arg.startswith('--user-data-dir='):
-                                modified_options.add_argument(arg)
-                        
-                        # Copy experimental options
-                        if hasattr(options, '_experimental_options'):
-                            for key, value in options._experimental_options.items():
-                                modified_options.add_experimental_option(key, value)
-                        
-                        if hasattr(options, 'binary_location') and options.binary_location:
-                            modified_options.binary_location = options.binary_location
-                        
-                        self.driver = webdriver.Chrome(service=service, options=modified_options)
-                        
-                    elif strategy_name == "with_tmp_profile":
-                        # Try with a completely different temp directory approach (tempfile imported at module top)
-                        with tempfile.TemporaryDirectory(prefix='chrome_profile_') as temp_profile:
-                            modified_options = webdriver.ChromeOptions()
-                            for arg in options.arguments:
-                                if not arg.startswith('--user-data-dir='):
-                                    modified_options.add_argument(arg)
-                            
-                            modified_options.add_argument(f'--user-data-dir={temp_profile}')
-                            
-                            # Copy experimental options
-                            if hasattr(options, '_experimental_options'):
-                                for key, value in options._experimental_options.items():
-                                    modified_options.add_experimental_option(key, value)
-                            
-                            if hasattr(options, 'binary_location') and options.binary_location:
-                                modified_options.binary_location = options.binary_location
-                            
-                            self.driver = webdriver.Chrome(service=service, options=modified_options)
-                    
-                    else:
-                        # Original approach with user data directory
-                        self.driver = webdriver.Chrome(service=service, options=options)
-                    
-                    # If we get here, the driver started successfully
-                    self._emit_log('info', f"✅ Chrome WebDriver started successfully with strategy: {strategy_desc}")
-                    break
-                    
-                except Exception as e:
-                    self._emit_log('warning', f"❌ Strategy '{strategy_desc}' failed: {str(e)}")
-                    if strategy_name == strategies[-1][0]:  # Last strategy
-                        raise  # Re-raise the last exception
-                    continue
-            
-            if not self.driver:
-                raise Exception("All Chrome WebDriver strategies failed")
-            
-            # Enhanced anti-detection for regular Selenium
+            # Enhanced anti-detection
             self.driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
             
             # Set timeouts
@@ -673,14 +352,12 @@ class TLSWebMonitor:
             
         except Exception as driver_error:
             self._emit_log('error', f"❌ Failed to initialize Chrome WebDriver: {driver_error}")
-            
-            if is_render:
-                self._emit_log('error', "🔍 Render.com diagnostic information:")
+            if is_cloud_deployment:
+                platform = "Koyeb" if is_koyeb else "Render" if is_render else "Railway" if is_railway else "Heroku" if is_heroku else "Cloud"
+                self._emit_log('error', f"🔍 {platform} diagnostic information:")
                 self._emit_log('error', f"  Chrome binary: {chrome_binary}")
                 self._emit_log('error', f"  CHROME_BIN env: {os.environ.get('CHROME_BIN', 'Not set')}")
-                self._emit_log('error', "🔧 Check Render build logs for Chrome installation issues")
-                self._emit_log('error', "📋 Ensure aptfile contains: chromium-browser")
-            
+                self._emit_log('error', f"🔧 Check {platform} build logs for Chrome installation issues")
             raise
     
     def login(self) -> bool:
