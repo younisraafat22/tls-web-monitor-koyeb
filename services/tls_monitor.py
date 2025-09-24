@@ -426,15 +426,27 @@ class TLSWebMonitor:
             # Koyeb-specific optimizations
             options.add_argument('--memory-pressure-off')  # Help with memory management
             options.add_argument('--max_old_space_size=512')  # Limit memory usage
-            options.add_argument('--single-process')  # Use single process for better resource control
+            # Removed --single-process as it can conflict with user data directory
             
             # Create unique user data directory to avoid conflicts in containerized environments
             temp_dir = tempfile.gettempdir()
-            unique_user_data_dir = os.path.join(temp_dir, f"chrome_user_data_{uuid.uuid4().hex[:8]}")
+            import time
+            timestamp = int(time.time() * 1000)  # Millisecond timestamp
+            process_id = os.getpid()
+            unique_user_data_dir = os.path.join(temp_dir, f"chrome_user_data_{timestamp}_{process_id}_{uuid.uuid4().hex[:8]}")
             os.makedirs(unique_user_data_dir, exist_ok=True)
             options.add_argument(f'--user-data-dir={unique_user_data_dir}')
             self._temp_user_data_dir = unique_user_data_dir  # Store for cleanup
             self._emit_log('info', f"🗂️ Using unique user data directory: {unique_user_data_dir}")
+            
+            # Additional Chrome options to prevent directory conflicts
+            options.add_argument('--no-first-run')  # Skip first run tasks
+            options.add_argument('--no-default-browser-check')  # Skip browser checks
+            options.add_argument('--disable-background-mode')  # Disable background mode
+            options.add_argument('--disable-backgrounding-occluded-windows')  # Already exists but good to have
+            options.add_argument('--disable-component-update')  # Disable component updates
+            options.add_argument('--disable-features=TranslateUI')  # Disable translate
+            options.add_argument('--disable-features=VizDisplayCompositor')  # Already exists but good to have
             
             # Set Chrome binary if found
             if chrome_binary:
