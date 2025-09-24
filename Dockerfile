@@ -3,6 +3,11 @@
 
 FROM python:3.11-slim
 
+# TLS Web Monitor - Koyeb Deployment
+# Optimized Docker image for reliable Chrome installation
+
+FROM python:3.11-slim
+
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
@@ -13,10 +18,7 @@ ENV PORT=8000
 # Add labels for Koyeb
 LABEL org.opencontainers.image.title="TLS Web Monitor"
 LABEL org.opencontainers.image.description="TLS Visa Appointment Monitor with Chrome support"
-LABEL koyeb.service.type="web"Monitor - Koyeb Deployment
-# Optimized Docker image for reliable Chrome installation
-
-FROM python:3.11-slim
+LABEL koyeb.service.type="web"
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1
