@@ -1,0 +1,12 @@
+.git
+.gitignore
+README.md
+DEPLOYMENT_GUIDE.md
+Dockerfile
+.dockerignore
+*.pyc
+__pycache__
+.pytest_cache
+.coverage
+logs
+*.log
