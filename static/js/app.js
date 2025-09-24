@@ -399,6 +399,21 @@ class TLSMonitorDashboard {
     
     async startMonitoring() {
         try {
+            // Debounce: if already monitoring or a start request in-flight, ignore
+            if (this.isMonitoring) {
+                this.showToast('Monitoring already running', 'warning');
+                return;
+            }
+            if (this._startingRequest) {
+                this.showToast('Start request already in progress...', 'info');
+                return;
+            }
+            this._startingRequest = true;
+            const startBtn = document.getElementById('start-monitoring-btn');
+            if (startBtn) {
+                startBtn.disabled = true;
+                startBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Starting...';
+            }
             // Validate TLS credentials before starting
             const tlsEmail = document.getElementById('tls-email').value.trim();
             const tlsPassword = document.getElementById('tls-password').value.trim();
@@ -446,6 +461,15 @@ class TLSMonitorDashboard {
             console.error('Start monitoring error:', error);
         } finally {
             this.showLoading(false);
+            // Restore start button state if monitoring failed
+            if (!this.isMonitoring) {
+                const btn = document.getElementById('start-monitoring-btn');
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fas fa-play"></i> Start Monitoring';
+                }
+            }
+            this._startingRequest = false;
         }
     }
     

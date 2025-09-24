@@ -55,6 +55,12 @@ class TLSWebMonitor:
         self._error_count = 0
         self._browser_port = None
         self._temp_user_data_dir = None  # Store temp directory for cleanup
+        # Instance identifier (used only for debug/status; safe accessor via getattr elsewhere)
+        try:
+            self._instance_id = uuid.uuid4().hex[:8]
+        except Exception:
+            # Fallback static id if uuid fails for any reason
+            self._instance_id = "instance"
         
     def _setup_logging(self):
         """Setup logging configuration optimized for cloud deployment"""
@@ -199,7 +205,9 @@ class TLSWebMonitor:
 
     def _setup_driver(self):
         """Initialize the browser driver with Render.com cloud support"""
-        print(f"[DEBUG] {self._instance_id} - Setting up Chrome WebDriver")
+        # Guard against missing attribute if code runs before __init__ fully executed
+        instance_id = getattr(self, '_instance_id', 'unknown')
+        print(f"[DEBUG] {instance_id} - Setting up Chrome WebDriver")
         use_uc = self.config.get("use_seleniumbase_uc", False) and SELENIUMBASE_AVAILABLE
         
         # Detect cloud deployment (Render, Koyeb, Railway, Heroku, etc.)
@@ -1056,10 +1064,6 @@ This is an automated notification from your TLS Visa Slot Checker.
                         'status': f'Check failed - retry {retry_count}/{max_retries}'
                     })
                 
-                # Clean up driver
-                if self.driver:
-                    self.driver.quit()
-                
                 # Wait before next check (interruptible)
                 wait_seconds = self.config['check_interval_minutes'] * 60
                 self._emit_log('info', f"Waiting {self.config['check_interval_minutes']} minutes before next check...")
@@ -1108,6 +1112,7 @@ This is an automated notification from your TLS Visa Slot Checker.
                 self.driver.quit()
             except:
                 pass
+        self.driver = None
         
         # Clean up temporary user data directory
         self._cleanup_temp_data()
@@ -1122,9 +1127,9 @@ This is an automated notification from your TLS Visa Slot Checker.
         if self.driver:
             try:
                 self.driver.quit()
-                self.driver = None
             except:
                 pass
+        self.driver = None
         
         # Clean up temporary user data directory
         self._cleanup_temp_data()
