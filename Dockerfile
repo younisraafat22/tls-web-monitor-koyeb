@@ -87,11 +87,11 @@ RUN mkdir -p downloaded_files logs
 RUN chmod +x app.py
 
 # Expose port
-EXPOSE 8080
+EXPOSE 8000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost:8080/keep-alive || exit 1
+    CMD curl -f http://localhost:8000/keep-alive || exit 1
 
 # Start command
 CMD ["python", "app.py"]
