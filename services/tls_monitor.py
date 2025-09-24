@@ -626,8 +626,7 @@ class TLSWebMonitor:
                         self.driver = webdriver.Chrome(service=service, options=modified_options)
                         
                     elif strategy_name == "with_tmp_profile":
-                        # Try with a completely different temp directory approach
-                        import tempfile
+                        # Try with a completely different temp directory approach (tempfile imported at module top)
                         with tempfile.TemporaryDirectory(prefix='chrome_profile_') as temp_profile:
                             modified_options = webdriver.ChromeOptions()
                             for arg in options.arguments:
