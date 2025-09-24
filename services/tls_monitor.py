@@ -88,7 +88,6 @@ class TLSWebMonitor:
         if sys.platform == 'win32':
             try:
                 # Try to set console to UTF-8
-                import os
                 os.system("chcp 65001 > nul")
                 console_handler.stream.reconfigure(encoding='utf-8', errors='replace')
             except:
