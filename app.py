@@ -24,8 +24,12 @@ app.config['SECRET_KEY'] = 'tls_monitor_secret_key_2024'
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 31536000  # Cache static files for 1 year
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 
-# Detect if we're in production
-is_production = os.environ.get('RENDER_SERVICE_NAME') is not None
+# Detect if we're in production (Koyeb, Render, or other cloud platforms)
+is_production = (os.environ.get('RENDER_SERVICE_NAME') is not None or 
+                 os.environ.get('KOYEB_SERVICE_NAME') is not None or
+                 os.environ.get('RAILWAY_ENVIRONMENT') is not None or
+                 os.environ.get('HEROKU_APP_NAME') is not None or
+                 os.environ.get('PORT') is not None)
 
 socketio = SocketIO(app, 
                     cors_allowed_origins="*",
@@ -274,4 +278,5 @@ if __name__ == '__main__':
                 port=port, 
                 debug=False,
                 use_reloader=False,
-                log_output=True)
+                log_output=True,
+                allow_unsafe_werkzeug=True)
