@@ -10,6 +10,9 @@ import random
 import smtplib
 import threading
 import sys
+import tempfile
+import uuid
+import shutil
 from datetime import datetime
 from typing import Dict, List
 from email.mime.text import MIMEText
@@ -50,6 +53,7 @@ class TLSWebMonitor:
         self._total_checks = 0
         self._error_count = 0
         self._browser_port = None
+        self._temp_user_data_dir = None  # Store temp directory for cleanup
         
     def _setup_logging(self):
         """Setup logging configuration optimized for cloud deployment"""
@@ -423,6 +427,14 @@ class TLSWebMonitor:
             options.add_argument('--memory-pressure-off')  # Help with memory management
             options.add_argument('--max_old_space_size=512')  # Limit memory usage
             options.add_argument('--single-process')  # Use single process for better resource control
+            
+            # Create unique user data directory to avoid conflicts in containerized environments
+            temp_dir = tempfile.gettempdir()
+            unique_user_data_dir = os.path.join(temp_dir, f"chrome_user_data_{uuid.uuid4().hex[:8]}")
+            os.makedirs(unique_user_data_dir, exist_ok=True)
+            options.add_argument(f'--user-data-dir={unique_user_data_dir}')
+            self._temp_user_data_dir = unique_user_data_dir  # Store for cleanup
+            self._emit_log('info', f"🗂️ Using unique user data directory: {unique_user_data_dir}")
             
             # Set Chrome binary if found
             if chrome_binary:
@@ -863,6 +875,16 @@ This is an automated notification from your TLS Visa Slot Checker.
             'status': 'Monitoring stopped'
         })
     
+    def _cleanup_temp_data(self):
+        """Clean up temporary user data directory"""
+        if self._temp_user_data_dir and os.path.exists(self._temp_user_data_dir):
+            try:
+                shutil.rmtree(self._temp_user_data_dir)
+                self._emit_log('info', f"🗑️ Cleaned up temp user data directory: {self._temp_user_data_dir}")
+                self._temp_user_data_dir = None
+            except Exception as e:
+                self._emit_log('warning', f"Failed to clean up temp directory: {e}")
+    
     def stop_monitoring(self):
         """Stop the monitoring process"""
         self._emit_log('info', "Stopping monitoring...")
@@ -875,6 +897,9 @@ This is an automated notification from your TLS Visa Slot Checker.
                 self.driver.quit()
             except:
                 pass
+        
+        # Clean up temporary user data directory
+        self._cleanup_temp_data()
     
     def force_stop(self):
         """Force stop monitoring immediately"""
@@ -889,6 +914,9 @@ This is an automated notification from your TLS Visa Slot Checker.
                 self.driver = None
             except:
                 pass
+        
+        # Clean up temporary user data directory
+        self._cleanup_temp_data()
     
     def is_running(self) -> bool:
         """Check if monitoring is currently running"""
@@ -917,3 +945,7 @@ This is an automated notification from your TLS Visa Slot Checker.
                 self.driver.quit()
             except:
                 pass
+        
+        # Clean up temporary user data directory
+        if hasattr(self, '_temp_user_data_dir'):
+            self._cleanup_temp_data()
