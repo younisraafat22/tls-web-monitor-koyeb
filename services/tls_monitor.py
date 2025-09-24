@@ -1,10 +1,7 @@
-""""""
-
-TLS Web Monitor Service - Koyeb Optimized VersionTLS Web Monitor Service - Chrome Version
-
-Enhanced Chrome support for Koyeb cloud deploymentEnhanced version based on working original script with web interface integration
-
-""""""
+"""
+TLS Web Monitor Service - Koyeb Optimized Version
+Enhanced Chrome support for Koyeb cloud deployment
+"""
 
 
 
