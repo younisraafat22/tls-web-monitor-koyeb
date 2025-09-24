@@ -1,0 +1,181 @@
+Instance created. Preparing to start...
+Starting download for registry01.prod.koyeb.com/k-9b4be64e-5396-4bcd-9f2a-1c4f2f4e8ac4/4c3b2005-1c36-403a-a939-29d650b6b2ba:2250e9be-0af2-48eb-a68d-1eb11dcc5b36
+Download progress: 100% |[32m++++++++[0m| (69.1 MiB/s)
+Download complete for registry01.prod.koyeb.com/k-9b4be64e-5396-4bcd-9f2a-1c4f2f4e8ac4/4c3b2005-1c36-403a-a939-29d650b6b2ba:2250e9be-0af2-48eb-a68d-1eb11dcc5b36
+Instance is starting... Waiting for health checks to pass.
+(1) wsgi starting up on http://0.0.0.0:8000
+Starting TLS Web Monitor...
+Access the dashboard at: http://localhost:8000
+Using eventlet server for production compatibility
+(1) accepted ('51.195.62.118', 5644)
+(1) accepted ('51.195.62.118', 5650)
+Instance is healthy. All health checks are passing.
+(1) accepted ('51.195.62.118', 5662)
+(1) accepted ('51.195.62.118', 25002)
+(1) accepted ('51.195.62.118', 25004)
+(1) accepted ('51.195.62.118', 25014)
+(1) accepted ('51.195.62.118', 25026)
+(1) accepted ('51.195.62.118', 25032)
+(1) accepted ('51.195.62.118', 25002)
+(1) accepted ('51.195.62.118', 29132)
+(1) accepted ('10.250.0.20', 53558)
+(1) accepted ('10.250.0.20', 53570)
+2a02:810d:9b08:e000:b4cc:9646:f89c:e563,10.250.0.20 - - [24/Sep/2025 12:49:30] "GET /socket.io/?EIO=4&transport=polling&t=PbxnPFW HTTP/1.1" 200 276 0.000574
+2a02:810d:9b08:e000:b4cc:9646:f89c:e563,10.250.0.20 - - [24/Sep/2025 12:49:30] "GET /socket.io/?EIO=4&transport=polling&t=PbxnPFX HTTP/1.1" 200 276 0.000504
+2a02:810d:9b08:e000:b4cc:9646:f89c:e563,10.250.0.20 - - [24/Sep/2025 12:49:30] "POST /socket.io/?EIO=4&transport=polling&t=PbxnPHS&sid=ru6Lpo6DOlrhC0gaAAAB HTTP/1.1" 200 234 0.001320
+(1) accepted ('10.250.0.22', 9798)
+(1) accepted ('10.250.0.21', 34796)
+(1) accepted ('10.250.0.22', 9808)
+2a02:810d:9b08:e000:b4cc:9646:f89c:e563,10.250.0.22 - - [24/Sep/2025 12:49:30] "POST /socket.io/?EIO=4&transport=polling&t=PbxnPHQ&sid=fQYUoo3fJ9x_eBxcAAAA HTTP/1.1" 200 234 0.000635
+2a02:810d:9b08:e000:b4cc:9646:f89c:e563,10.250.0.21 - - [24/Sep/2025 12:49:30] "GET /socket.io/?EIO=4&transport=polling&t=PbxnPHQ.0&sid=fQYUoo3fJ9x_eBxcAAAA HTTP/1.1" 200 241 0.000150
+2a02:810d:9b08:e000:b4cc:9646:f89c:e563,10.250.0.22 - - [24/Sep/2025 12:49:30] "GET /socket.io/?EIO=4&transport=polling&t=PbxnPHS.0&sid=ru6Lpo6DOlrhC0gaAAAB HTTP/1.1" 200 241 0.000121
+(1) accepted ('10.250.0.22', 9820)
+(1) accepted ('10.250.0.21', 34802)
+(1) accepted ('10.250.0.21', 34806)
+2a02:810d:9b08:e000:b4cc:9646:f89c:e563,10.250.0.22 - - [24/Sep/2025 12:49:30] "GET /socket.io/?EIO=4&transport=polling&t=PbxnPHv&sid=fQYUoo3fJ9x_eBxcAAAA HTTP/1.1" 200 157 0.084278
+2a02:810d:9b08:e000:b4cc:9646:f89c:e563,10.250.0.20 - - [24/Sep/2025 12:49:30] "GET /socket.io/?EIO=4&transport=polling&t=PbxnPJe&sid=fQYUoo3fJ9x_eBxcAAAA HTTP/1.1" 200 157 0.000178
+(1) accepted ('10.250.0.20', 53580)
+2a02:810d:9b08:e000:b4cc:9646:f89c:e563,10.250.0.21 - - [24/Sep/2025 12:49:30] "GET /socket.io/?EIO=4&transport=polling&t=PbxnPHx&sid=ru6Lpo6DOlrhC0gaAAAB HTTP/1.1" 200 157 0.182204
+2a02:810d:9b08:e000:b4cc:9646:f89c:e563,10.250.0.22 - - [24/Sep/2025 12:49:33] "GET / HTTP/1.1" 200 15335 0.589478
+(1) accepted ('10.250.0.21', 34822)
+The client is using an unsupported version of the Socket.IO or Engine.IO protocols (further occurrences of this error will be logged with level INFO)
+2a02:810d:9b08:e000:b4cc:9646:f89c:e563,10.250.0.21 - - [24/Sep/2025 12:49:33] "GET /socket.io/socket.io.js HTTP/1.1" 400 195 0.000694
+2a02:810d:9b08:e000:b4cc:9646:f89c:e563,10.250.0.21 - - [24/Sep/2025 12:49:33] "GET /socket.io/?EIO=4&transport=polling&t=PbxnP_V HTTP/1.1" 200 276 0.000413
+2a02:810d:9b08:e000:b4cc:9646:f89c:e563,10.250.0.20 - - [24/Sep/2025 12:49:33] "GET /api/status HTTP/1.1" 200 227 0.000608
+2a02:810d:9b08:e000:b4cc:9646:f89c:e563,10.250.0.21 - - [24/Sep/2025 12:49:33] "GET /api/config HTTP/1.1" 200 868 0.001222
+2a02:810d:9b08:e000:b4cc:9646:f89c:e563,10.250.0.20 - - [24/Sep/2025 12:49:33] "GET /socket.io/?EIO=4&transport=polling&t=PbxnP_k HTTP/1.1" 200 276 0.000380
+2a02:810d:9b08:e000:b4cc:9646:f89c:e563,10.250.0.22 - - [24/Sep/2025 12:49:33] "GET /api/status HTTP/1.1" 200 227 0.000552
+2a02:810d:9b08:e000:b4cc:9646:f89c:e563,10.250.0.21 - - [24/Sep/2025 12:49:33] "POST /socket.io/?EIO=4&transport=polling&t=PbxnP_x&sid=Zk_m9L2CtLv9MOqAAAAE HTTP/1.1" 200 234 0.000691
+2a02:810d:9b08:e000:b4cc:9646:f89c:e563,10.250.0.20 - - [24/Sep/2025 12:49:33] "GET /socket.io/?EIO=4&transport=polling&t=PbxnP_y&sid=Zk_m9L2CtLv9MOqAAAAE HTTP/1.1" 200 241 0.000209
+2a02:810d:9b08:e000:b4cc:9646:f89c:e563,10.250.0.22 - - [24/Sep/2025 12:49:33] "GET /api/config HTTP/1.1" 200 868 0.000582
+2a02:810d:9b08:e000:b4cc:9646:f89c:e563,10.250.0.21 - - [24/Sep/2025 12:49:33] "POST /socket.io/?EIO=4&transport=polling&t=PbxnQ0L&sid=0z_7hQ4ZXNRMIHh-AAAF HTTP/1.1" 200 234 0.000849
+2a02:810d:9b08:e000:b4cc:9646:f89c:e563,10.250.0.22 - - [24/Sep/2025 12:49:33] "GET /socket.io/?EIO=4&transport=polling&t=PbxnQ0M&sid=0z_7hQ4ZXNRMIHh-AAAF HTTP/1.1" 200 241 0.011338
+(1) accepted ('10.250.0.20', 53592)
+2a02:810d:9b08:e000:b4cc:9646:f89c:e563,10.250.0.20 - - [24/Sep/2025 12:49:33] "GET /socket.io/?EIO=4&transport=polling&t=PbxnQ0R&sid=Zk_m9L2CtLv9MOqAAAAE HTTP/1.1" 200 157 0.056774
+(1) accepted ('10.250.0.22', 25002)
+2a02:810d:9b08:e000:b4cc:9646:f89c:e563,10.250.0.22 - - [24/Sep/2025 12:49:33] "GET /socket.io/?EIO=4&transport=polling&t=PbxnQ0-&sid=0z_7hQ4ZXNRMIHh-AAAF HTTP/1.1" 200 157 0.134389
+2a02:810d:9b08:e000:b4cc:9646:f89c:e563,10.250.0.21 - - [24/Sep/2025 12:49:35] "GET /socket.io/?EIO=4&transport=websocket&sid=fQYUoo3fJ9x_eBxcAAAA HTTP/1.1" 200 0 4.699575
+2a02:810d:9b08:e000:b4cc:9646:f89c:e563,10.250.0.20 - - [24/Sep/2025 12:49:35] "GET /socket.io/?EIO=4&transport=websocket&sid=ru6Lpo6DOlrhC0gaAAAB HTTP/1.1" 200 0 4.587488
+Client disconnected
+Client disconnected
+Configuration updated successfully
+Configuration updated successfully
+[12:49:36] Starting TLS Visa Appointment Slot Monitoring...
+[12:49:36] Checking every 5 minutes
+[12:49:36] Monitoring 3 months ahead
+[12:49:36] 🌐 Detected Koyeb deployment - setting up Chrome...
+[12:49:36] 🔍 Searching for Chrome binary on Koyeb...
+[12:49:36] 🔍 Debugging - checking all Chrome paths...
+[12:49:36]   /usr/bin/google-chrome: exists=True, executable=True
+[12:49:36] ✅ Found Chrome: /usr/bin/google-chrome
+[12:49:36] 🚀 Initializing SeleniumBase UC mode for Cloudflare bypass...
+[12:49:36] 🎯 Set CHROME_BIN environment variable: /usr/bin/google-chrome
+2a02:810d:9b08:e000:b4cc:9646:f89c:e563,10.250.0.21 - - [24/Sep/2025 12:49:36] "POST /api/config HTTP/1.1" 200 172 0.002906
+2a02:810d:9b08:e000:b4cc:9646:f89c:e563,10.250.0.20 - - [24/Sep/2025 12:49:36] "POST /api/config HTTP/1.1" 200 172 0.001246
+2a02:810d:9b08:e000:b4cc:9646:f89c:e563,10.250.0.21 - - [24/Sep/2025 12:49:36] "POST /api/start-monitoring HTTP/1.1" 200 166 0.001329
+2a02:810d:9b08:e000:b4cc:9646:f89c:e563,10.250.0.20 - - [24/Sep/2025 12:49:36] "POST /api/start-monitoring HTTP/1.1" 200 169 0.047991
+
+Warning: uc_driver not found. Getting it now:
+
+*** chromedriver to download = 140.0.7339.207 (Latest Stable) 
+
+Downloading chromedriver-linux64.zip from:
+https://storage.googleapis.com/chrome-for-testing-public/140.0.7339.207/linux64/chromedriver-linux64.zip ...
+Download Complete!
+
+Extracting ['chromedriver'] from chromedriver-linux64.zip ...
+Unzip Complete!
+
+The file [uc_driver] was saved to:
+/usr/local/lib/python3.11/site-packages/seleniumbase/drivers/
+uc_driver
+
+Making [uc_driver 140.0.7339.207] executable ...
+[uc_driver 140.0.7339.207] is now ready for use!
+
+(1) accepted ('51.195.62.118', 40670)
+(1) accepted ('51.195.62.118', 40492)
+(1) accepted ('51.195.62.118', 25002)
+(1) accepted ('51.195.62.118', 47822)
+(1) accepted ('51.195.62.118', 2098)
+[12:51:45] ❌ SeleniumBase UC failed: Message: session not created: cannot connect to chrome at 127.0.0.1:9222
+from chrome not reachable; For documentation on this error, please visit: https://www.selenium.dev/documentation/webdriver/troubleshooting/errors#sessionnotcreatedexception
+Stacktrace:
+#0 0x564be67e0fba <unknown>
+#1 0x564be6265523 <unknown>
+#2 0x564be62514b6 <unknown>
+#3 0x564be62a50bc <unknown>
+#4 0x564be629a9ed <unknown>
+#5 0x564be62eb280 <unknown>
+#6 0x564be62ea946 <unknown>
+#7 0x564be62dcc03 <unknown>
+#8 0x564be62a97a8 <unknown>
+#9 0x564be62aa421 <unknown>
+#10 0x564be67a5b28 <unknown>
+#11 0x564be67a987f <unknown>
+#12 0x564be678dc49 <unknown>
+#13 0x564be67aa405 <unknown>
+#14 0x564be67734ff <unknown>
+#15 0x564be67ce258 <unknown>
+#16 0x564be67ce432 <unknown>
+#17 0x564be67dffa3 <unknown>
+#18 0x7fc2bb32bb7b <unknown>
+
+[12:51:45] 🔄 Falling back to regular Selenium WebDriver...
+[12:51:45] 🔧 Using regular Selenium WebDriver
+[12:51:45] ⚙️ Applying Cloud deployment Chrome optimizations...
+[12:51:45] 🗂️ Using unique user data directory: /tmp/chrome_user_data_b894469b
+[12:51:45] 🎯 Chrome binary set to: /usr/bin/google-chrome
+[12:51:45] 📦 Installing/updating ChromeDriver...
+[12:51:49] 🚀 Starting Chrome WebDriver...
+[12:51:56] ❌ Failed to initialize Chrome WebDriver: Message: session not created: probably user data directory is already in use, please specify a unique value for --user-data-dir argument, or don't use --user-data-dir; For documentation on this error, please visit: https://www.selenium.dev/documentation/webdriver/troubleshooting/errors#sessionnotcreatedexception
+Stacktrace:
+#0 0x556b14116fba <unknown>
+#1 0x556b13b9b6d0 <unknown>
+#2 0x556b13bd6475 <unknown>
+#3 0x556b13bd2368 <unknown>
+#4 0x556b13c21280 <unknown>
+#5 0x556b13c20946 <unknown>
+#6 0x556b13c12c03 <unknown>
+#7 0x556b13bdf7a8 <unknown>
+#8 0x556b13be0421 <unknown>
+#9 0x556b140dbb28 <unknown>
+#10 0x556b140df87f <unknown>
+#11 0x556b140c3c49 <unknown>
+#12 0x556b140e0405 <unknown>
+#13 0x556b140a94ff <unknown>
+#14 0x556b14104258 <unknown>
+#15 0x556b14104432 <unknown>
+#16 0x556b14115fa3 <unknown>
+#17 0x7fdb83413b7b <unknown>
+
+[12:51:56] Unexpected error: Message: session not created: probably user data directory is already in use, please specify a unique value for --user-data-dir argument, or don't use --user-data-dir; For documentation on this error, please visit: https://www.selenium.dev/documentation/webdriver/troubleshooting/errors#sessionnotcreatedexception
+Stacktrace:
+#0 0x556b14116fba <unknown>
+#1 0x556b13b9b6d0 <unknown>
+#2 0x556b13bd6475 <unknown>
+#3 0x556b13bd2368 <unknown>
+#4 0x556b13c21280 <unknown>
+#5 0x556b13c20946 <unknown>
+#6 0x556b13c12c03 <unknown>
+#7 0x556b13bdf7a8 <unknown>
+#8 0x556b13be0421 <unknown>
+#9 0x556b140dbb28 <unknown>
+#10 0x556b140df87f <unknown>
+#11 0x556b140c3c49 <unknown>
+#12 0x556b140e0405 <unknown>
+#13 0x556b140a94ff <unknown>
+#14 0x556b14104258 <unknown>
+#15 0x556b14104432 <unknown>
+#16 0x556b14115fa3 <unknown>
+#17 0x7fdb83413b7b <unknown>
+
+(1) accepted ('51.195.62.118', 27864)
+[12:52:26] 🌐 Detected Koyeb deployment - setting up Chrome...
+[12:52:26] 🔍 Searching for Chrome binary on Koyeb...
+[12:52:26] 🔍 Debugging - checking all Chrome paths...
+[12:52:26]   /usr/bin/google-chrome: exists=True, executable=True
+[12:52:26] ✅ Found Chrome: /usr/bin/google-chrome
+[12:52:26] 🚀 Initializing SeleniumBase UC mode for Cloudflare bypass...
+[12:52:26] 🎯 Set CHROME_BIN environment variable: /usr/bin/google-chrome
+(1) accepted ('51.195.62.118', 58896)

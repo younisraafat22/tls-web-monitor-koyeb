@@ -42,6 +42,10 @@ except ImportError:
 
 class TLSWebMonitor:
     def __init__(self, config: Dict, socketio=None):
+        import time
+        self._instance_id = f"TLSMonitor_{int(time.time() * 1000)}_{os.getpid()}"
+        print(f"[DEBUG] Creating TLSWebMonitor instance: {self._instance_id}")
+        
         self.config = config
         self.socketio = socketio
         self.driver = None
@@ -166,6 +170,7 @@ class TLSWebMonitor:
     
     def _setup_driver(self):
         """Initialize the browser driver with Render.com cloud support"""
+        print(f"[DEBUG] {self._instance_id} - Setting up Chrome WebDriver")
         use_uc = self.config.get("use_seleniumbase_uc", False) and SELENIUMBASE_AVAILABLE
         
         # Detect cloud deployment (Render, Koyeb, Railway, Heroku, etc.)
@@ -434,10 +439,57 @@ class TLSWebMonitor:
             timestamp = int(time.time() * 1000)  # Millisecond timestamp
             process_id = os.getpid()
             unique_user_data_dir = os.path.join(temp_dir, f"chrome_user_data_{timestamp}_{process_id}_{uuid.uuid4().hex[:8]}")
+            
+            # Alternative 1: Try using /dev/shm for faster I/O if available (Linux containers)
+            shm_dir = "/dev/shm"
+            if os.path.exists(shm_dir) and os.access(shm_dir, os.W_OK):
+                unique_user_data_dir = os.path.join(shm_dir, f"chrome_user_data_{timestamp}_{process_id}_{uuid.uuid4().hex[:8]}")
+                self._emit_log('info', f"🚀 Using /dev/shm for user data directory (faster I/O)")
+            
             os.makedirs(unique_user_data_dir, exist_ok=True)
+            
+            # Clean up any existing lock files in the directory
+            lock_files = ['SingletonLock', 'SingletonSocket', 'SingletonCookie']
+            for lock_file in lock_files:
+                lock_path = os.path.join(unique_user_data_dir, lock_file)
+                if os.path.exists(lock_path):
+                    try:
+                        os.remove(lock_path)
+                        self._emit_log('info', f"🗑️ Removed existing lock file: {lock_file}")
+                    except Exception as e:
+                        self._emit_log('warning', f"⚠️ Could not remove lock file {lock_file}: {e}")
+            
             options.add_argument(f'--user-data-dir={unique_user_data_dir}')
             self._temp_user_data_dir = unique_user_data_dir  # Store for cleanup
             self._emit_log('info', f"🗂️ Using unique user data directory: {unique_user_data_dir}")
+            
+            # DEBUG: Log directory creation and permissions
+            if os.path.exists(unique_user_data_dir):
+                import stat
+                dir_stat = os.stat(unique_user_data_dir)
+                self._emit_log('info', f"📁 Directory created successfully: {unique_user_data_dir}")
+                self._emit_log('info', f"📊 Directory permissions: {oct(dir_stat.st_mode)}")
+                self._emit_log('info', f"👤 Directory owner: UID={dir_stat.st_uid}, GID={dir_stat.st_gid}")
+                
+                # Check if directory is writable
+                if os.access(unique_user_data_dir, os.W_OK):
+                    self._emit_log('info', f"✅ Directory is writable")
+                else:
+                    self._emit_log('warning', f"⚠️ Directory is not writable!")
+            else:
+                self._emit_log('error', f"❌ Failed to create directory: {unique_user_data_dir}")
+            
+            # Alternative 2: Add Chrome options specifically for containerized environments
+            # Based on Chrome documentation for avoiding user data directory conflicts
+            options.add_argument('--disable-dev-shm-usage')  # Already exists but critical
+            options.add_argument('--disable-background-timer-throttling')  # Already exists 
+            options.add_argument('--disable-backgrounding-occluded-windows')  # Already exists
+            options.add_argument('--disable-renderer-backgrounding')  # Already exists
+            options.add_argument('--disable-ipc-flooding-protection')  # Already exists
+            options.add_argument('--no-zygote')  # Disable zygote process
+            options.add_argument('--no-crash-upload')  # Disable crash reporting
+            options.add_argument('--disable-crash-reporter')  # Disable crash reporter
+            options.add_argument('--disable-in-process-stack-traces')  # Disable stack traces
             
             # Additional Chrome options to prevent directory conflicts
             options.add_argument('--no-first-run')  # Skip first run tasks
@@ -466,8 +518,109 @@ class TLSWebMonitor:
             self._emit_log('info', "📦 Installing/updating ChromeDriver...")
             service = Service(ChromeDriverManager().install())
             
+            # DEBUG: Log all Chrome options before starting WebDriver
+            self._emit_log('info', "🔍 DEBUG: Chrome Options Analysis")
+            all_options = options.arguments
+            self._emit_log('info', f"📋 Total Chrome arguments: {len(all_options)}")
+            
+            # Check for user-data-dir specifically
+            user_data_args = [arg for arg in all_options if 'user-data-dir' in arg]
+            if user_data_args:
+                self._emit_log('info', f"🗂️ User data directory arguments found: {user_data_args}")
+            else:
+                self._emit_log('warning', f"⚠️ No user-data-dir argument found in options!")
+            
+            # Log all Chrome arguments for debugging
+            for i, arg in enumerate(all_options):
+                self._emit_log('info', f"  [{i:2d}] {arg}")
+            
+            # Check Chrome binary location
+            if hasattr(options, 'binary_location') and options.binary_location:
+                self._emit_log('info', f"🎯 Chrome binary location: {options.binary_location}")
+                if os.path.exists(options.binary_location):
+                    self._emit_log('info', f"✅ Chrome binary exists and is accessible")
+                else:
+                    self._emit_log('error', f"❌ Chrome binary not found at: {options.binary_location}")
+            
+            # Check for running Chrome processes
+            try:
+                import subprocess
+                result = subprocess.run(['pgrep', '-f', 'chrome'], capture_output=True, text=True, timeout=5)
+                if result.returncode == 0:
+                    processes = result.stdout.strip().split('\n')
+                    self._emit_log('warning', f"⚠️ Found {len(processes)} running Chrome processes: {processes}")
+                else:
+                    self._emit_log('info', f"✅ No running Chrome processes found")
+            except Exception as e:
+                self._emit_log('info', f"🔍 Could not check for running Chrome processes: {e}")
+            
             self._emit_log('info', "🚀 Starting Chrome WebDriver...")
-            self.driver = webdriver.Chrome(service=service, options=options)
+            
+            # Alternative approach: Try multiple strategies for Chrome startup
+            strategies = [
+                ("with_user_data_dir", "Using unique user data directory"),
+                ("without_user_data_dir", "Without user data directory"),
+                ("with_tmp_profile", "Using temporary profile")
+            ]
+            
+            for strategy_name, strategy_desc in strategies:
+                try:
+                    self._emit_log('info', f"🔄 Trying strategy: {strategy_desc}")
+                    
+                    if strategy_name == "without_user_data_dir":
+                        # Remove user-data-dir argument
+                        modified_options = webdriver.ChromeOptions()
+                        for arg in options.arguments:
+                            if not arg.startswith('--user-data-dir='):
+                                modified_options.add_argument(arg)
+                        
+                        # Copy experimental options
+                        if hasattr(options, '_experimental_options'):
+                            for key, value in options._experimental_options.items():
+                                modified_options.add_experimental_option(key, value)
+                        
+                        if hasattr(options, 'binary_location') and options.binary_location:
+                            modified_options.binary_location = options.binary_location
+                        
+                        self.driver = webdriver.Chrome(service=service, options=modified_options)
+                        
+                    elif strategy_name == "with_tmp_profile":
+                        # Try with a completely different temp directory approach
+                        import tempfile
+                        with tempfile.TemporaryDirectory(prefix='chrome_profile_') as temp_profile:
+                            modified_options = webdriver.ChromeOptions()
+                            for arg in options.arguments:
+                                if not arg.startswith('--user-data-dir='):
+                                    modified_options.add_argument(arg)
+                            
+                            modified_options.add_argument(f'--user-data-dir={temp_profile}')
+                            
+                            # Copy experimental options
+                            if hasattr(options, '_experimental_options'):
+                                for key, value in options._experimental_options.items():
+                                    modified_options.add_experimental_option(key, value)
+                            
+                            if hasattr(options, 'binary_location') and options.binary_location:
+                                modified_options.binary_location = options.binary_location
+                            
+                            self.driver = webdriver.Chrome(service=service, options=modified_options)
+                    
+                    else:
+                        # Original approach with user data directory
+                        self.driver = webdriver.Chrome(service=service, options=options)
+                    
+                    # If we get here, the driver started successfully
+                    self._emit_log('info', f"✅ Chrome WebDriver started successfully with strategy: {strategy_desc}")
+                    break
+                    
+                except Exception as e:
+                    self._emit_log('warning', f"❌ Strategy '{strategy_desc}' failed: {str(e)}")
+                    if strategy_name == strategies[-1][0]:  # Last strategy
+                        raise  # Re-raise the last exception
+                    continue
+            
+            if not self.driver:
+                raise Exception("All Chrome WebDriver strategies failed")
             
             # Enhanced anti-detection for regular Selenium
             self.driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
@@ -804,15 +957,21 @@ This is an automated notification from your TLS Visa Slot Checker.
     
     def start_monitoring(self):
         """Start continuous monitoring for available slots"""
-        self._emit_log('info', "Starting TLS Visa Appointment Slot Monitoring...")
+        print(f"[DEBUG] {self._instance_id} - start_monitoring() called")
+        self._emit_log('info', f"[{self._instance_id}] Starting TLS Visa Appointment Slot Monitoring...")
         self._emit_log('info', f"Checking every {self.config['check_interval_minutes']} minutes")
         self._emit_log('info', f"Monitoring {self.config['months_to_check']} months ahead")
         
+        if self._running:
+            print(f"[DEBUG] {self._instance_id} - Already running, exiting")
+            return
+            
         self._running = True
         self._stop_event.clear()
         retry_count = 0
         max_retries = self.config["max_retries"]
         
+        print(f"[DEBUG] {self._instance_id} - Starting monitoring loop")
         while not self._stop_event.is_set():
             try:
                 # Emit status update before starting check
