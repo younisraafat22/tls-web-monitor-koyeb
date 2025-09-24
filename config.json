@@ -1,0 +1,30 @@
+{
+  "tls_url": "https://visas-de.tlscontact.com/en-us/country/eg/vac/egCAI2de",
+  "login_start_url": "https://visas-de.tlscontact.com/en-us/login",
+  "login_credentials": {
+    "email": "gilanelsayied812@gmail.com",
+    "password": "Yois@Ra753"
+  },
+  "notification": {
+    "desktop": {
+      "enabled": false
+    },
+    "email": {
+      "enabled": true,
+      "smtp_server": "smtp.gmail.com",
+      "smtp_port": 587,
+      "sender_email": "younis.raafat2@gmail.com",
+      "sender_password": "rnhi xzku xrtk vkyo",
+      "receiver_email": "younis.raafat.ahmed@fau.de",
+      "subject": "TLS Visa Slots Available!"
+    }
+  },
+  "check_interval_minutes": 5,
+  "months_to_check": 3,
+  "max_retries": 3,
+  "headless_mode": true,
+  "use_seleniumbase_uc": true,
+  "implicit_wait": 10,
+  "page_load_timeout": 30,
+  "remote_debugging_port": 9222
+}

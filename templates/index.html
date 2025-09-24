@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TLS Visa Monitor Dashboard</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <h1><i class="fas fa-calendar-check"></i> TLS Visa Monitor</h1>
+                <div class="status-indicator" id="status-indicator">
+                    <span class="status-dot offline" id="status-dot"></span>
+                    <span id="status-text">Offline</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Configuration Panel -->
+            <section class="config-panel">
+                <h2><i class="fas fa-cog"></i> Configuration</h2>
+                
+                <!-- TLS Credentials -->
+                <div class="config-group">
+                    <h3>TLS Account Credentials</h3>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="tls-email">TLS Email:</label>
+                            <input type="email" id="tls-email" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="tls-password">TLS Password:</label>
+                            <input type="password" id="tls-password" required>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Monitoring Settings -->
+                <div class="config-group">
+                    <h3>Monitoring Settings</h3>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="check-interval">Check Interval (minutes):</label>
+                            <input type="number" id="check-interval" min="1" value="15">
+                        </div>
+                        <div class="form-group">
+                            <label for="months-to-check">Months to Check:</label>
+                            <input type="number" id="months-to-check" min="1" max="6" value="3">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Notification Settings -->
+                <div class="config-group">
+                    <h3>Notification Settings</h3>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="desktop-notifications">
+                                <span class="checkmark"></span>
+                                Enable Desktop Notifications
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="email-notifications">
+                                <span class="checkmark"></span>
+                                Enable Email Notifications
+                            </label>
+                        </div>
+                    </div>
+
+                    <div id="email-config" class="email-config" style="display: none;">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="receiver-email">Notification Email:</label>
+                                <input type="email" id="receiver-email" placeholder="Enter email to receive notifications" required>
+                            </div>
+                        </div>
+                        <p class="config-note">
+                            <i class="fas fa-info-circle"></i>
+                            Notifications will be sent to this E-mail
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Browser Settings -->
+                <div class="config-group">
+                    <h3>Browser Settings</h3>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="headless-mode" checked>
+                                <span class="checkmark"></span>
+                                Run Browser in Background (Headless Mode)
+                            </label>
+                        </div>
+                    </div>
+                    <p class="config-note">
+                        <i class="fas fa-info-circle"></i>
+                        Headless mode runs the browser invisibly in the background for better performance and less distraction.
+                    </p>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="action-buttons">
+                    <button id="save-config-btn" class="btn btn-primary">
+                        <i class="fas fa-save"></i> Save Configuration
+                    </button>
+                    <button id="test-notifications-btn" class="btn btn-secondary">
+                        <i class="fas fa-bell"></i> Test Notifications
+                    </button>
+                </div>
+            </section>
+
+            <!-- Monitoring Control -->
+            <section class="control-panel">
+                <h2><i class="fas fa-play-circle"></i> Monitoring Control</h2>
+                <div class="control-buttons">
+                    <button id="start-monitoring-btn" class="btn btn-success">
+                        <i class="fas fa-play"></i> Start Monitoring
+                    </button>
+                    <button id="stop-monitoring-btn" class="btn btn-danger" disabled>
+                        <i class="fas fa-stop"></i> Stop Monitoring
+                    </button>
+                </div>
+                
+                <!-- Countdown Display -->
+                <div class="stats-grid">
+                    <div class="stat-card countdown-card">
+                        <div class="stat-icon"><i class="fas fa-hourglass-half"></i></div>
+                        <div class="stat-content">
+                            <div class="stat-label">Next Check</div>
+                            <div class="stat-value countdown-display" id="countdown-display">--:--:--</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Live Logs -->
+                <div class="logs-container">
+                    <h3><i class="fas fa-file-alt"></i> Live Logs</h3>
+                    <div class="logs-toolbar">
+                        <button id="clear-logs-btn" class="btn btn-sm btn-secondary">
+                            <i class="fas fa-trash"></i> Clear Logs
+                        </button>
+                        <button id="auto-scroll-btn" class="btn btn-sm btn-primary active">
+                            <i class="fas fa-arrow-down"></i> Auto Scroll
+                        </button>
+                    </div>
+                    <div class="logs-content" id="logs-content">
+                        <div class="log-entry info">
+                            <span class="log-time">[System]</span>
+                            <span class="log-message">Welcome to TLS Visa Monitor Dashboard</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Notification Toast -->
+        <div id="toast-notification" class="toast-notification">
+            <div class="toast-content">
+                <div class="toast-icon">
+                    <i class="fas fa-info-circle"></i>
+                </div>
+                <div class="toast-message" id="toast-message">
+                    Notification message
+                </div>
+                <button class="toast-close" id="toast-close">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Enhanced Popup Notification -->
+        <div id="popup-notification" class="popup-notification">
+            <div class="popup-content">
+                <div class="popup-header">
+                    <div class="popup-icon" id="popup-icon">
+                        <i class="fas fa-info-circle"></i>
+                    </div>
+                    <h3 id="popup-title">Notification</h3>
+                    <button class="popup-close" id="popup-close">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="popup-body">
+                    <div id="popup-message">Notification message</div>
+                    <div class="popup-actions" id="popup-actions" style="display: none;">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Loading Overlay -->
+        <div id="loading-overlay" class="loading-overlay">
+            <div class="loading-content">
+                <div class="spinner"></div>
+                <p>Loading...</p>
+            </div>
+        </div>
+
+        <!-- Slots Found Modal -->
+        <div id="slots-modal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3><i class="fas fa-calendar-check"></i> Potential Slots Found!</h3>
+                    <button class="modal-close" id="slots-modal-close">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <strong>Important:</strong> Please verify these slots manually on the TLS website!
+                    </div>
+                    <div id="slots-list"></div>
+                    <div class="modal-actions">
+                        <a href="https://visas-de.tlscontact.com/" target="_blank" class="btn btn-primary">
+                            <i class="fas fa-external-link-alt"></i> Open TLS Website
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Monitoring Failed Modal -->
+    <div id="monitoring-failed-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>
+                    <i class="fas fa-exclamation-triangle" style="color: #dc3545;"></i>
+                    <span id="failed-modal-title">Monitoring Failed</span>
+                </h3>
+                <button class="close" onclick="closeMonitoringFailedModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-danger">
+                    <i class="fas fa-times-circle"></i>
+                    <strong>Error:</strong> <span id="failed-modal-message">Monitoring has stopped unexpectedly.</span>
+                </div>
+                <div id="failed-modal-details" class="error-details" style="margin-top: 15px; padding: 10px; background: #f8f9fa; border-left: 4px solid #dc3545; font-family: monospace; font-size: 0.9em;"></div>
+                <div class="modal-actions" style="margin-top: 20px;">
+                    <button id="restart-monitoring-btn" class="btn btn-success" onclick="restartFromFailure()">
+                        <i class="fas fa-redo"></i> Restart Monitoring
+                    </button>
+                    <button class="btn btn-secondary" onclick="closeMonitoringFailedModal()">
+                        <i class="fas fa-times"></i> Close
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script>
+        // Load Socket.IO with better error handling
+        (function() {
+            function loadSocketIO() {
+                var script = document.createElement('script');
+                script.onload = function() {
+                    if (typeof io !== 'undefined') {
+                        console.log('Socket.IO loaded successfully from server');
+                        loadMainScript();
+                    } else {
+                        loadCDNSocketIO();
+                    }
+                };
+                script.onerror = function() {
+                    console.warn('Failed to load Socket.IO from server, trying CDN...');
+                    loadCDNSocketIO();
+                };
+                script.src = '/socket.io/socket.io.js';
+                document.head.appendChild(script);
+            }
+
+            function loadCDNSocketIO() {
+                var script = document.createElement('script');
+                script.onload = function() {
+                    if (typeof io !== 'undefined') {
+                        console.log('Socket.IO loaded successfully from CDN');
+                        loadMainScript();
+                    } else {
+                        createMockSocketIO();
+                    }
+                };
+                script.onerror = function() {
+                    console.error('Failed to load Socket.IO from CDN, creating mock');
+                    createMockSocketIO();
+                };
+                script.src = 'https://cdn.socket.io/4.7.4/socket.io.min.js';
+                document.head.appendChild(script);
+            }
+
+            function createMockSocketIO() {
+                console.warn('Creating mock Socket.IO to prevent errors');
+                window.io = function() {
+                    return {
+                        on: function() { console.log('Mock Socket.IO: on called'); },
+                        emit: function() { console.log('Mock Socket.IO: emit called'); },
+                        disconnect: function() { console.log('Mock Socket.IO: disconnect called'); },
+                        connected: false
+                    };
+                };
+                loadMainScript();
+            }
+
+            function loadMainScript() {
+                var script = document.createElement('script');
+                script.src = "{{ url_for('static', filename='js/app.js') }}";
+                script.onerror = function() {
+                    console.error('Failed to load main application script');
+                };
+                document.head.appendChild(script);
+            }
+
+            // Start loading when DOM is ready
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', loadSocketIO);
+            } else {
+                loadSocketIO();
+            }
+        })();
+    </script>
+</body>
+</html>
