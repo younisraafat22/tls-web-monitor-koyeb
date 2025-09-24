@@ -193,8 +193,14 @@ class TLSWebMonitor:
             ]
             
             self._emit_log('info', f"🔍 Searching for Chrome binary on {platform}...")
+            
+            # Debug: List available paths first
+            self._emit_log('info', "🔍 Debugging - checking all Chrome paths...")
             for path in cloud_chrome_paths:
-                if os.path.exists(path) and os.access(path, os.X_OK):
+                exists = os.path.exists(path)
+                executable = os.access(path, os.X_OK) if exists else False
+                self._emit_log('info', f"  {path}: exists={exists}, executable={executable}")
+                if exists and executable:
                     chrome_binary = path
                     self._emit_log('info', f"✅ Found Chrome: {chrome_binary}")
                     break
@@ -203,27 +209,160 @@ class TLSWebMonitor:
                 self._emit_log('warning', "⚠️ Chrome not found in standard locations, checking installed packages...")
                 try:
                     import subprocess
-                    result = subprocess.run(['which', 'google-chrome'], capture_output=True, text=True, timeout=10)
-                    if result.returncode == 0 and result.stdout.strip():
-                        chrome_binary = result.stdout.strip()
-                        self._emit_log('info', f"✅ Found Chrome via which: {chrome_binary}")
-                    else:
-                        result = subprocess.run(['which', 'chromium-browser'], capture_output=True, text=True, timeout=10)
-                        if result.returncode == 0 and result.stdout.strip():
-                            chrome_binary = result.stdout.strip()
-                            self._emit_log('info', f"✅ Found Chromium via which: {chrome_binary}")
+                    
+                    # Try multiple Chrome commands
+                    chrome_commands = ['google-chrome', 'google-chrome-stable', 'chromium-browser', 'chromium']
+                    for cmd in chrome_commands:
+                        try:
+                            result = subprocess.run(['which', cmd], capture_output=True, text=True, timeout=10)
+                            if result.returncode == 0 and result.stdout.strip():
+                                chrome_binary = result.stdout.strip()
+                                self._emit_log('info', f"✅ Found {cmd} via which: {chrome_binary}")
+                                break
+                        except Exception as cmd_error:
+                            self._emit_log('warning', f"Failed to check {cmd}: {cmd_error}")
+                    
+                    # If still not found, try alternative methods
+                    if not chrome_binary:
+                        try:
+                            # Try find command to locate Chrome
+                            result = subprocess.run(['find', '/usr', '/opt', '-name', 'google-chrome*', '-type', 'f', '-executable'], 
+                                                  capture_output=True, text=True, timeout=15)
+                            if result.returncode == 0 and result.stdout.strip():
+                                lines = result.stdout.strip().split('\n')
+                                for line in lines:
+                                    if 'google-chrome' in line and os.path.exists(line):
+                                        chrome_binary = line
+                                        self._emit_log('info', f"✅ Found Chrome via find: {chrome_binary}")
+                                        break
+                        except Exception as find_error:
+                            self._emit_log('warning', f"Find command failed: {find_error}")
+                            
                 except Exception as e:
                     self._emit_log('warning', f"Chrome detection error: {e}")
             
             if not chrome_binary:
-                self._emit_log('error', f"❌ Chrome/Chromium not found on {platform}! Check build configuration.")
-                if is_render:
-                    self._emit_log('error', "🔧 Render deployment requires Chrome to be installed via aptfile")
-                elif is_koyeb:
-                    self._emit_log('error', "🔧 Koyeb deployment may need Chrome in Docker image or buildpack")
+                self._emit_log('warning', f"❌ Chrome/Chromium not found on {platform}! Running comprehensive discovery...")
+                
+                # Comprehensive Chrome discovery for debugging
+                self._emit_log('info', "🔍 CHROME DISCOVERY DEBUG - Starting comprehensive search...")
+                
+                try:
+                    import subprocess
+                    
+                    # 1. Check if Chrome package is installed
+                    self._emit_log('info', "1️⃣ Checking installed packages...")
+                    try:
+                        result = subprocess.run(['dpkg', '-l', '|', 'grep', 'chrome'], 
+                                              capture_output=True, text=True, shell=True, timeout=10)
+                        if result.stdout:
+                            self._emit_log('info', f"   Installed packages: {result.stdout}")
+                        else:
+                            self._emit_log('warning', "   No Chrome packages found via dpkg")
+                    except Exception as e:
+                        self._emit_log('warning', f"   Package check failed: {e}")
+                    
+                    # 2. Search entire filesystem for Chrome binaries
+                    self._emit_log('info', "2️⃣ Searching filesystem for Chrome binaries...")
+                    try:
+                        search_commands = [
+                            ['find', '/', '-name', '*chrome*', '-type', 'f', '-executable', '2>/dev/null'],
+                            ['find', '/usr', '-name', '*chrome*', '-type', 'f', '2>/dev/null'],
+                            ['find', '/opt', '-name', '*chrome*', '-type', 'f', '2>/dev/null'],
+                            ['find', '/app', '-name', '*chrome*', '-type', 'f', '2>/dev/null']
+                        ]
+                        
+                        for cmd in search_commands:
+                            try:
+                                result = subprocess.run(cmd, capture_output=True, text=True, timeout=15, shell=True)
+                                if result.stdout.strip():
+                                    lines = result.stdout.strip().split('\n')[:10]  # Limit output
+                                    for line in lines:
+                                        if line.strip():
+                                            self._emit_log('info', f"   Found: {line}")
+                                            # Try this as Chrome binary
+                                            if 'chrome' in line.lower() and os.path.exists(line) and os.access(line, os.X_OK):
+                                                chrome_binary = line
+                                                self._emit_log('info', f"✅ DISCOVERED Chrome binary: {chrome_binary}")
+                                                break
+                                if chrome_binary:
+                                    break
+                            except Exception as cmd_error:
+                                self._emit_log('warning', f"   Search command failed: {cmd_error}")
+                    except Exception as e:
+                        self._emit_log('warning', f"   Filesystem search failed: {e}")
+                    
+                    # 3. Check environment variables
+                    self._emit_log('info', "3️⃣ Checking environment variables...")
+                    chrome_env_vars = ['CHROME_BIN', 'GOOGLE_CHROME_BIN', 'CHROME_EXECUTABLE']
+                    for env_var in chrome_env_vars:
+                        value = os.environ.get(env_var)
+                        if value:
+                            self._emit_log('info', f"   {env_var}={value}")
+                            if os.path.exists(value) and os.access(value, os.X_OK) and not chrome_binary:
+                                chrome_binary = value
+                                self._emit_log('info', f"✅ Using Chrome from environment: {chrome_binary}")
+                        else:
+                            self._emit_log('info', f"   {env_var}=<not set>")
+                    
+                    # 4. Try to run Chrome commands to see what happens
+                    self._emit_log('info', "4️⃣ Testing Chrome commands...")
+                    chrome_commands = ['google-chrome', 'google-chrome-stable', 'chromium-browser', 'chrome']
+                    for cmd in chrome_commands:
+                        try:
+                            result = subprocess.run([cmd, '--version'], capture_output=True, text=True, timeout=10)
+                            if result.returncode == 0:
+                                self._emit_log('info', f"   {cmd} works: {result.stdout.strip()}")
+                                if not chrome_binary:
+                                    # Find where this command is located
+                                    which_result = subprocess.run(['which', cmd], capture_output=True, text=True, timeout=5)
+                                    if which_result.returncode == 0:
+                                        chrome_binary = which_result.stdout.strip()
+                                        self._emit_log('info', f"✅ Found working Chrome: {chrome_binary}")
+                            else:
+                                self._emit_log('info', f"   {cmd} failed: {result.stderr.strip()}")
+                        except Exception as cmd_error:
+                            self._emit_log('info', f"   {cmd} error: {cmd_error}")
+                    
+                    # 5. List common directories
+                    self._emit_log('info', "5️⃣ Listing contents of common Chrome directories...")
+                    common_dirs = ['/usr/bin', '/opt', '/usr/lib', '/app', '/workspace']
+                    for directory in common_dirs:
+                        if os.path.exists(directory):
+                            try:
+                                files = os.listdir(directory)
+                                chrome_files = [f for f in files if 'chrome' in f.lower()]
+                                if chrome_files:
+                                    self._emit_log('info', f"   {directory}: {chrome_files}")
+                                    # Check if any of these are executable
+                                    for file in chrome_files:
+                                        full_path = os.path.join(directory, file)
+                                        if os.access(full_path, os.X_OK) and not chrome_binary:
+                                            chrome_binary = full_path
+                                            self._emit_log('info', f"✅ Found executable Chrome: {chrome_binary}")
+                                            break
+                            except Exception as e:
+                                self._emit_log('warning', f"   Cannot list {directory}: {e}")
+                
+                except Exception as discovery_error:
+                    self._emit_log('error', f"Chrome discovery failed: {discovery_error}")
+                
+                # Final check
+                if chrome_binary:
+                    self._emit_log('info', f"🎉 CHROME DISCOVERY SUCCESSFUL: {chrome_binary}")
                 else:
-                    self._emit_log('error', f"🔧 {platform} deployment requires Chrome installation")
-                raise Exception(f"Chrome binary not found on {platform} - check deployment configuration")
+                    self._emit_log('error', "❌ CHROME DISCOVERY FAILED - Chrome not found anywhere!")
+                    if is_render:
+                        self._emit_log('error', "🔧 Render deployment requires Chrome to be installed via aptfile")
+                    elif is_koyeb:
+                        self._emit_log('error', "🔧 Koyeb deployment may need Chrome in Docker image or buildpack")
+                        self._emit_log('error', "💡 Try adding Chrome installation to your Dockerfile")
+                    else:
+                        self._emit_log('error', f"🔧 {platform} deployment requires Chrome installation")
+                    
+                    # Don't raise exception immediately - let's try to continue with default Chrome paths
+                    self._emit_log('warning', "⚠️ Attempting to continue without explicit Chrome binary path...")
+                    chrome_binary = None  # Let Chrome auto-detect
         
         if use_uc:
             try:

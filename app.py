@@ -102,6 +102,101 @@ def keep_alive():
         'message': 'TLS Monitor is running'
     })
 
+@app.route('/debug/chrome-discovery')
+def debug_chrome_discovery():
+    """Debug endpoint to discover Chrome installation paths"""
+    import subprocess
+    debug_info = {
+        'timestamp': datetime.now().isoformat(),
+        'platform_detection': {},
+        'environment_variables': {},
+        'file_system_search': {},
+        'command_tests': {},
+        'directory_listings': {}
+    }
+    
+    try:
+        # Platform detection
+        debug_info['platform_detection'] = {
+            'RENDER_SERVICE_NAME': os.environ.get('RENDER_SERVICE_NAME'),
+            'KOYEB_SERVICE_NAME': os.environ.get('KOYEB_SERVICE_NAME'), 
+            'RAILWAY_ENVIRONMENT': os.environ.get('RAILWAY_ENVIRONMENT'),
+            'HEROKU_APP_NAME': os.environ.get('HEROKU_APP_NAME'),
+            'PORT': os.environ.get('PORT'),
+            'dockerenv_exists': os.path.exists('/.dockerenv')
+        }
+        
+        # Chrome-related environment variables
+        chrome_env_vars = ['CHROME_BIN', 'GOOGLE_CHROME_BIN', 'CHROME_EXECUTABLE', 'CHROMIUM_BIN']
+        for var in chrome_env_vars:
+            value = os.environ.get(var)
+            debug_info['environment_variables'][var] = {
+                'value': value,
+                'exists': os.path.exists(value) if value else None,
+                'executable': os.access(value, os.X_OK) if value and os.path.exists(value) else None
+            }
+        
+        # Test Chrome commands
+        chrome_commands = ['google-chrome', 'google-chrome-stable', 'chromium-browser', 'chromium', 'chrome']
+        for cmd in chrome_commands:
+            try:
+                # Test version command
+                result = subprocess.run([cmd, '--version'], capture_output=True, text=True, timeout=10)
+                # Find location
+                which_result = subprocess.run(['which', cmd], capture_output=True, text=True, timeout=5)
+                
+                debug_info['command_tests'][cmd] = {
+                    'version_works': result.returncode == 0,
+                    'version_output': result.stdout.strip() if result.returncode == 0 else result.stderr.strip(),
+                    'location': which_result.stdout.strip() if which_result.returncode == 0 else None
+                }
+            except Exception as e:
+                debug_info['command_tests'][cmd] = {'error': str(e)}
+        
+        # Search common Chrome paths
+        chrome_paths = [
+            '/usr/bin/google-chrome',
+            '/usr/bin/google-chrome-stable', 
+            '/usr/bin/chromium-browser',
+            '/usr/bin/chromium',
+            '/opt/google/chrome/chrome',
+            '/snap/bin/chromium',
+            '/app/.chrome-for-testing/chrome-linux64/chrome',
+            '/workspace/.chrome/chrome',
+            '/opt/chrome/chrome'
+        ]
+        
+        for path in chrome_paths:
+            debug_info['file_system_search'][path] = {
+                'exists': os.path.exists(path),
+                'executable': os.access(path, os.X_OK) if os.path.exists(path) else None,
+                'is_file': os.path.isfile(path) if os.path.exists(path) else None
+            }
+        
+        # List contents of common directories
+        common_dirs = ['/usr/bin', '/opt', '/usr/lib', '/app', '/workspace']
+        for directory in common_dirs:
+            if os.path.exists(directory):
+                try:
+                    files = os.listdir(directory)
+                    chrome_files = [f for f in files if 'chrome' in f.lower()]
+                    debug_info['directory_listings'][directory] = chrome_files[:20]  # Limit to 20 files
+                except Exception as e:
+                    debug_info['directory_listings'][directory] = {'error': str(e)}
+        
+        return jsonify({
+            'success': True,
+            'debug_info': debug_info,
+            'message': 'Chrome discovery debug completed'
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'debug_info': debug_info
+        })
+
 @app.route('/api/start-monitoring', methods=['POST'])
 def start_monitoring():
     """Start the TLS monitoring process"""
