@@ -42,16 +42,13 @@ except ImportError:
 
 class TLSWebMonitor:
     def __init__(self, config: Dict, socketio=None):
-        import time
-        self._instance_id = f"TLSMonitor_{int(time.time() * 1000)}_{os.getpid()}"
-        print(f"[DEBUG] Creating TLSWebMonitor instance: {self._instance_id}")
-        
         self.config = config
         self.socketio = socketio
         self.driver = None
         self._is_seleniumbase = False
         self.logger = self._setup_logging()
         self._running = False
+        self._initializing = False  # Flag to track driver initialization
         self._stop_event = threading.Event()
         self._last_check_time = None
         self._total_checks = 0
@@ -168,6 +165,38 @@ class TLSWebMonitor:
             time.sleep(sleep_time)
             elapsed += sleep_time
     
+    def _cleanup_failed_chrome_attempt(self):
+        """Clean up any leftover Chrome processes and user data after failed initialization"""
+        try:
+            # Kill any stray Chrome/ChromeDriver processes
+            import subprocess
+            
+            # Find and kill Chrome processes
+            for process_name in ['chrome', 'google-chrome', 'google-chrome-stable', 'chromedriver']:
+                try:
+                    result = subprocess.run(['pkill', '-f', process_name], capture_output=True, timeout=5)
+                    if result.returncode == 0:
+                        self._emit_log('info', f"🗑️ Killed stray {process_name} processes")
+                except Exception:
+                    pass
+            
+            # Clean up temp user data directory if it exists
+            if self._temp_user_data_dir and os.path.exists(self._temp_user_data_dir):
+                try:
+                    import shutil
+                    shutil.rmtree(self._temp_user_data_dir)
+                    self._emit_log('info', f"🗑️ Cleaned up failed attempt user data: {self._temp_user_data_dir}")
+                    self._temp_user_data_dir = None
+                except Exception as e:
+                    self._emit_log('warning', f"Could not clean up user data dir: {e}")
+                    
+            # Small delay to let processes fully terminate
+            import time
+            time.sleep(0.5)
+            
+        except Exception as e:
+            self._emit_log('warning', f"Error during Chrome cleanup: {e}")
+
     def _setup_driver(self):
         """Initialize the browser driver with Render.com cloud support"""
         print(f"[DEBUG] {self._instance_id} - Setting up Chrome WebDriver")
@@ -388,6 +417,10 @@ class TLSWebMonitor:
                 
             except Exception as e:
                 self._emit_log('warning', f"❌ SeleniumBase UC failed: {e}")
+                
+                # Clean up any leftover processes and user data from failed UC attempt
+                self._cleanup_failed_chrome_attempt()
+                
                 self._emit_log('warning', "🔄 Falling back to regular Selenium WebDriver...")
                 
         # Fallback to regular Selenium
@@ -957,21 +990,30 @@ This is an automated notification from your TLS Visa Slot Checker.
     
     def start_monitoring(self):
         """Start continuous monitoring for available slots"""
-        print(f"[DEBUG] {self._instance_id} - start_monitoring() called")
-        self._emit_log('info', f"[{self._instance_id}] Starting TLS Visa Appointment Slot Monitoring...")
+        self._emit_log('info', "Starting TLS Visa Appointment Slot Monitoring...")
         self._emit_log('info', f"Checking every {self.config['check_interval_minutes']} minutes")
         self._emit_log('info', f"Monitoring {self.config['months_to_check']} months ahead")
         
-        if self._running:
-            print(f"[DEBUG] {self._instance_id} - Already running, exiting")
+        if self._running or self._initializing:
+            self._emit_log('warning', "Monitoring is already running or initializing")
             return
             
         self._running = True
+        self._initializing = True
         self._stop_event.clear()
         retry_count = 0
         max_retries = self.config["max_retries"]
         
-        print(f"[DEBUG] {self._instance_id} - Starting monitoring loop")
+        try:
+            # Initialize driver once at start
+            self._setup_driver()
+            self._initializing = False  # Driver setup complete
+        except Exception as e:
+            self._initializing = False
+            self._running = False
+            self._emit_log('error', f"Failed to initialize driver: {e}")
+            return
+        
         while not self._stop_event.is_set():
             try:
                 # Emit status update before starting check
@@ -983,9 +1025,7 @@ This is an automated notification from your TLS Visa Slot Checker.
                     'status': 'Running check...'
                 })
                 
-                # Setup fresh driver for each cycle
-                self._setup_driver()
-                
+                # Driver is already set up once at start - no need to recreate each cycle
                 success = self.run_check_cycle()
                 self._total_checks += 1
                 self._last_check_time = datetime.now()
@@ -1090,8 +1130,8 @@ This is an automated notification from your TLS Visa Slot Checker.
         self._cleanup_temp_data()
     
     def is_running(self) -> bool:
-        """Check if monitoring is currently running"""
-        return self._running
+        """Check if monitoring is currently running or initializing"""
+        return self._running or self._initializing
     
     def get_last_check_time(self) -> str:
         """Get the last check time as ISO string"""

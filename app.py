@@ -46,6 +46,10 @@ monitor = None
 monitor_thread = None
 config_manager = ConfigManager()
 
+# Lock to prevent concurrent start/stop operations
+import threading
+monitor_lock = threading.Lock()
+
 @app.route('/static/<path:filename>')
 def serve_static(filename):
     """Serve static files with proper MIME types"""
@@ -292,61 +296,54 @@ def start_monitoring():
     """Start the TLS monitoring process"""
     global monitor, monitor_thread
     
-    try:
-        print(f"[DEBUG] Start monitoring called. Current monitor: {monitor}, is_running: {monitor.is_running() if monitor else 'None'}")
-        
-        # Check if monitoring is already running
-        if monitor and monitor.is_running():
-            print("[DEBUG] Monitoring already running - returning early")
-            return jsonify({'success': False, 'error': 'Monitoring is already running'})
-        
-        # Clean up any existing thread
-        if monitor_thread and monitor_thread.is_alive():
-            print("[DEBUG] Previous thread still alive - waiting for cleanup")
-            return jsonify({'success': False, 'error': 'Previous monitoring session is still stopping. Please wait a moment and try again.'})
-        
-        # Force cleanup any existing monitor instance
-        if monitor:
-            print("[DEBUG] Cleaning up existing monitor instance")
-            try:
-                monitor.force_stop()
-            except:
-                pass
-            monitor = None
+    # Use lock to prevent concurrent start operations
+    with monitor_lock:
+        try:
+            # Check if monitoring is already running
+            if monitor and monitor.is_running():
+                return jsonify({'success': False, 'error': 'Monitoring is already running'})
             
-        # Clean up thread reference
-        monitor_thread = None
+            # Clean up any existing thread
+            if monitor_thread and monitor_thread.is_alive():
+                return jsonify({'success': False, 'error': 'Previous monitoring session is still stopping. Please wait a moment and try again.'})
+            
+            # Force cleanup any existing monitor instance
+            if monitor:
+                try:
+                    monitor.force_stop()
+                except:
+                    pass
+                monitor = None
+                
+            # Clean up thread reference
+            monitor_thread = None
+            
+            config = config_manager.get_config()
+            
+            # Validate configuration before starting
+            is_valid, error_message = config_manager.validate_config(config)
+            if not is_valid:
+                return jsonify({'success': False, 'error': error_message})
         
-        config = config_manager.get_config()
-        
-        # Validate configuration before starting
-        is_valid, error_message = config_manager.validate_config(config)
-        if not is_valid:
-            return jsonify({'success': False, 'error': error_message})
-        
-        # Specifically check TLS credentials
-        tls_email = config.get('login_credentials', {}).get('email', '').strip()
-        tls_password = config.get('login_credentials', {}).get('password', '').strip()
-        
-        if not tls_email or not tls_password:
-            return jsonify({
-                'success': False, 
-                'error': 'TLS email and password are required. Please fill in your TLS account credentials before starting monitoring.'
-            })
-        
-        print("[DEBUG] Creating new TLSWebMonitor instance")
-        monitor = TLSWebMonitor(config, socketio)
-        
-        print("[DEBUG] Starting monitoring thread")
-        # Start monitoring in a separate thread
-        monitor_thread = threading.Thread(target=monitor.start_monitoring, daemon=True, name="TLS-Monitor")
-        monitor_thread.start()
-        
-        print("[DEBUG] Monitoring started successfully")
-        return jsonify({'success': True, 'message': 'Monitoring started successfully'})
-    except Exception as e:
-        print(f"[DEBUG] Start monitoring error: {e}")
-        return jsonify({'success': False, 'error': str(e)})
+            # Specifically check TLS credentials
+            tls_email = config.get('login_credentials', {}).get('email', '').strip()
+            tls_password = config.get('login_credentials', {}).get('password', '').strip()
+            
+            if not tls_email or not tls_password:
+                return jsonify({
+                    'success': False, 
+                    'error': 'TLS email and password are required. Please fill in your TLS account credentials before starting monitoring.'
+                })
+            
+            monitor = TLSWebMonitor(config, socketio)
+            
+            # Start monitoring in a separate thread
+            monitor_thread = threading.Thread(target=monitor.start_monitoring, daemon=True, name="TLS-Monitor")
+            monitor_thread.start()
+            
+            return jsonify({'success': True, 'message': 'Monitoring started successfully'})
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/api/stop-monitoring', methods=['POST'])
 def stop_monitoring():
