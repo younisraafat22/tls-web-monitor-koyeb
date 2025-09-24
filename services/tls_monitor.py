@@ -164,28 +164,36 @@ class TLSWebMonitor:
         """Initialize the browser driver with Render.com cloud support"""
         use_uc = self.config.get("use_seleniumbase_uc", False) and SELENIUMBASE_AVAILABLE
         
-        # Detect Render.com deployment
+        # Detect cloud deployment (Render, Koyeb, Railway, Heroku, etc.)
         is_render = os.environ.get('RENDER_SERVICE_NAME') is not None
+        is_koyeb = os.environ.get('KOYEB_SERVICE_NAME') is not None
+        is_railway = os.environ.get('RAILWAY_ENVIRONMENT') is not None
+        is_heroku = os.environ.get('HEROKU_APP_NAME') is not None
+        is_cloud_deployment = is_render or is_koyeb or is_railway or is_heroku or os.environ.get('PORT') is not None
         
-        if is_render:
-            self._emit_log('info', "🌐 Detected Render.com deployment - setting up Chrome...")
+        if is_cloud_deployment:
+            platform = "Koyeb" if is_koyeb else "Render" if is_render else "Railway" if is_railway else "Heroku" if is_heroku else "Cloud"
+            self._emit_log('info', f"🌐 Detected {platform} deployment - setting up Chrome...")
             
-            # Force headless mode on Render
+            # Force headless mode on cloud deployments
             headless_mode = True
             
-            # Find Chrome binary on Render.com
+            # Find Chrome binary on cloud deployment
             chrome_binary = None
-            render_chrome_paths = [
+            cloud_chrome_paths = [
                 '/usr/bin/google-chrome',
                 '/usr/bin/google-chrome-stable', 
                 '/usr/bin/chromium-browser',
                 '/usr/bin/chromium',
                 '/opt/google/chrome/chrome',
-                '/snap/bin/chromium'
+                '/snap/bin/chromium',
+                '/app/.chrome-for-testing/chrome-linux64/chrome',  # Koyeb specific
+                '/workspace/.chrome/chrome',  # Alternative Koyeb path
+                '/opt/chrome/chrome',  # Alternative cloud path
             ]
             
-            self._emit_log('info', "🔍 Searching for Chrome binary on Render...")
-            for path in render_chrome_paths:
+            self._emit_log('info', f"🔍 Searching for Chrome binary on {platform}...")
+            for path in cloud_chrome_paths:
                 if os.path.exists(path) and os.access(path, os.X_OK):
                     chrome_binary = path
                     self._emit_log('info', f"✅ Found Chrome: {chrome_binary}")
@@ -208,16 +216,21 @@ class TLSWebMonitor:
                     self._emit_log('warning', f"Chrome detection error: {e}")
             
             if not chrome_binary:
-                self._emit_log('error', "❌ Chrome/Chromium not found! Check Render build logs for installation issues.")
-                self._emit_log('error', "🔧 Render deployment requires Chrome to be installed via aptfile")
-                raise Exception("Chrome binary not found on Render.com - check aptfile installation")
+                self._emit_log('error', f"❌ Chrome/Chromium not found on {platform}! Check build configuration.")
+                if is_render:
+                    self._emit_log('error', "🔧 Render deployment requires Chrome to be installed via aptfile")
+                elif is_koyeb:
+                    self._emit_log('error', "🔧 Koyeb deployment may need Chrome in Docker image or buildpack")
+                else:
+                    self._emit_log('error', f"🔧 {platform} deployment requires Chrome installation")
+                raise Exception(f"Chrome binary not found on {platform} - check deployment configuration")
         
         if use_uc:
             try:
                 self._emit_log('info', "🚀 Initializing SeleniumBase UC mode for Cloudflare bypass...")
                 
-                # For Render, we need to pass the chrome binary path to SeleniumBase
-                if is_render and chrome_binary:
+                # For cloud deployments, we need to pass the chrome binary path to SeleniumBase
+                if is_cloud_deployment and chrome_binary:
                     os.environ['CHROME_BIN'] = chrome_binary
                     self._emit_log('info', f"🎯 Set CHROME_BIN environment variable: {chrome_binary}")
                 
@@ -237,7 +250,7 @@ class TLSWebMonitor:
         options = Options()
         
         # Essential Chrome options for cloud deployment (Koyeb/Render)
-        if is_render:
+        if is_cloud_deployment:
             self._emit_log('info', "⚙️ Applying Cloud deployment Chrome optimizations...")
             options.add_argument('--headless=new')  # Use new headless mode
             options.add_argument('--no-sandbox')
@@ -283,7 +296,7 @@ class TLSWebMonitor:
         options.add_experimental_option("excludeSwitches", ["enable-automation"])
         options.add_experimental_option('useAutomationExtension', False)
         
-        if not is_render and self.config.get("headless_mode", False):
+        if not is_cloud_deployment and self.config.get("headless_mode", False):
             options.add_argument('--headless')
         
         try:
